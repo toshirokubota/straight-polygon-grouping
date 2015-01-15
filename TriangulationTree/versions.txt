@@ -1,0 +1,9 @@
+TriangulationTreeFaceMST.cpp [11/15/2013]
+It construct a minimum spanning tree where a vertex is a triangle.
+The weight of an edge between a pair of adjacent triangles is the edge saliency.
+It then splits the tree into forrest by removing weak edges.
+
+TriangulationTreeFaceMST_ES.cpp [11/16/2013]
+After construction of a minimum spanning tree (as described above), it computes
+the edge strength as the distance of two adjacent faces in the spanning tree.
+ 

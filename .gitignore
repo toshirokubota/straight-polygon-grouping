@@ -7,6 +7,7 @@
 # Precompiled Headers
 *.gch
 *.pch
+*.sdf
 
 # Compiled Dynamic libraries
 *.so
@@ -21,11 +22,33 @@
 *.la
 *.a
 *.lib
+*.exp
+*.pdb
 
 # Executables
 *.exe
 *.out
 *.app
+
+*.tlog
+*.log
+*.zip
+*.user
+
+# Build results
+
+[Dd]ebug/
+[Rr]elease/
+x64/
+build/
+
+#*Copy*.cpp
+#*Copy*.h
+*- Copy.cpp
+*- Copy.h
+*- Copy (*).cpp
+*- Copy (*).h
+
 
 # =========================
 # Operating System Files
