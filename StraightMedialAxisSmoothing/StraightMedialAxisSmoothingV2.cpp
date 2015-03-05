@@ -164,7 +164,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 	}
 	GraphFactory<graphKey>* factory = GraphFactory<graphKey>::GetInstance();
 	ParticleFactory* pfactory = ParticleFactory::getInstance();
-
+	int j;
 	vector<Vertex<graphKey>*> vertices;
 	for(int i=0; i<points.size(); ++i)
 	{
