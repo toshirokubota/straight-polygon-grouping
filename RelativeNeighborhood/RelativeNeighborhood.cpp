@@ -27,43 +27,83 @@ using namespace std;
 #include <DistanceMapUtility.h>
 #include <DotGroupUtility.h>
 
-vector<Triangulation::_Internal::_vertex*> 
-trace2Junctions(Triangulation::_Internal::_vertex* p,
-set<Triangulation::_Internal::_vertex*>& junctions)
+vector<Triangulation::_Internal::_vertex*>
+removeKinks(vector<Triangulation::_Internal::_vertex*>& path)
 {
-	vector<Triangulation::_Internal::_vertex*> neighbors;
-	//do BFS until it hits a junction
-	set<Triangulation::_Internal::_vertex*> pset;
-	pset.insert(p);
-	vector<Triangulation::_Internal::_vertex*> Q(1, p);
-	while (Q.empty() == false)
+	vector<Triangulation::_Internal::_vertex*> res = path;
+	float eps1 = 1.0e-3;
+	float eps2 = 1.0e-2;
+	for (int i = res.size() - 1; i >= 0 && res.size()>2; i--)
 	{
-		vector<Triangulation::_Internal::_vertex*> Q2;
-		for (int i = 0; i < Q.size(); ++i)
+		Triangulation::_Internal::_vertex* p = res[i];
+		Triangulation::_Internal::_vertex* q = res[(i+1) % res.size()];
+		Triangulation::_Internal::_vertex* r = res[(i-1+res.size()) % res.size()];
+		float d = Distance(q->p, p->p);
+		float a = GetVisualAngle(q->p.m_X, q->p.m_Y, r->p.m_X, r->p.m_Y, p->p.m_X, p->p.m_Y);
+		if (d < eps1 || a < eps2)
 		{
-			Triangulation::_Internal::_vertex* q = Q[i];
-			for (int j = 0; j < q->edges.size(); ++j)
+			res.erase(res.begin() + i);
+			printf("removeKinks: removing a partcile.\n");
+		}
+	}
+	return res;
+}
+
+vector<Triangulation::_Internal::_vertex*>
+subsamplePath(vector<Triangulation::_Internal::_vertex*>& path, int maxGap) {
+	vector<Triangulation::_Internal::_vertex*> spath;
+
+	int nfill = (path.size() - 1) / maxGap;
+	float inc = (float)(path.size()-1) / (nfill + 1);
+	//printf("len=%d, gap=%d, n=%d, inc=%f\n", path.size(), maxGap, nfill, inc);
+	spath.push_back(path[0]);
+	float next = inc;
+	for (int i = 1; i < path.size() - 1; ++i)
+	{
+		if (i >= next)
+		{
+			spath.push_back(path[i]);
+			next += inc;
+		}
+	}
+	spath.push_back(path[path.size() - 1]);
+	return spath;
+}
+
+vector<Triangulation::_Internal::_vertex*>
+trace2Junctions(Triangulation::_Internal::_edge* edge, Triangulation::_Internal::_vertex* source)
+{
+	vector<Triangulation::_Internal::_vertex*> trace;
+	Triangulation::_Internal::_vertex* u = edge->vertices[0]==source ? edge->vertices[0]: edge->vertices[1];
+	Triangulation::_Internal::_vertex* v = edge->vertices[0] == source ? edge->vertices[1] : edge->vertices[0];
+	trace.push_back(u);
+	while (v->edges.size() == 2 && v != source) 
+	{
+		trace.push_back(v);
+		for (int i = 0; i < 2; ++i)
+		{
+			Triangulation::_Internal::_edge* ed = v->edges[i];
+			if (ed->vertices[0] != u && ed->vertices[1] != u)
 			{
-				Triangulation::_Internal::_edge* e = q->edges[j];
-				Triangulation::_Internal::_vertex* r = e->vertices[0] == q ? e->vertices[1] : e->vertices[0];
-				if (pset.find(r) == pset.end())
+				edge = ed;
+				if (edge->vertices[0] == v)
 				{
-					if (junctions.find(r) != junctions.end())
-					{
-						neighbors.push_back(r);
-					}
-					else
-					{
-						Q2.push_back(r);
-					}
-					pset.insert(r);
+					v = edge->vertices[1];
+					u = edge->vertices[0];
 				}
+				else
+				{
+					v = edge->vertices[0];
+					u = edge->vertices[1];
+				}
+				break;
 			}
 		}
-		Q = Q2;
 	}
-	return neighbors;
+	trace.push_back(v);
+	return trace;
 }
+
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {   
@@ -83,17 +123,17 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 		LoadData(P0, prhs[0], classIdP, ndimP, &dimsP);
 		points = vector2particle(P0, dimsP);
 	}
-	float thres = 10.0f;
-	if (nrhs >= 2)
-	{
-		mxClassID classMode;
-		ReadScalar(thres, prhs[1], classMode);
-	}
 	float scale = 2.0f;
 	if (nrhs >= 2)
 	{
 		mxClassID classMode;
-		ReadScalar(scale, prhs[2], classMode);
+		ReadScalar(scale, prhs[1], classMode);
+	}
+	int maxSkip = 5; 
+	if (nrhs >= 3)
+	{
+	mxClassID classMode;
+	ReadScalar(maxSkip, prhs[2], classMode);
 	}
 
 	Triangulation::Triangulator trmap(points);
@@ -121,11 +161,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 		Triangulation::_Internal::_edge* e = trmap.edges[i];
 		Triangulation::_Internal::_vertex* u = e->vertices[0];
 		Triangulation::_Internal::_vertex* v = e->vertices[1];
-		if (W[i]>thres)
-		{
-			keep[i] = false;
-			continue;;
-		}
 		for (int k1 = 0; k1 < u->edges.size() && keep[i]; ++k1)
 		{
 			Triangulation::_Internal::_edge* e2 = u->edges[k1];
@@ -226,7 +261,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 	}
 
 	//finally reduce the graph by eliminating vertices that are not junctions (ones with more than 2 edges)
-	//first facilitate the processing, remove non-kept edges from each vertex.
+	//first, to facilitate the processing, remove non-kept edges from each vertex.
 	for (int i = 0; i < trmap.points.size(); ++i)
 	{
 		Triangulation::_Internal::_vertex* p = trmap.points[i];
@@ -240,54 +275,85 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 		}
 	}
 	vector<Triangulation::_Internal::_vertex*> junctions;
-	set<Triangulation::_Internal::_vertex*> jset;
-	map<Triangulation::_Internal::_vertex*,int> jmap;
 	for (int i = 0; i < trmap.points.size(); ++i)
 	{
 		Triangulation::_Internal::_vertex* p = trmap.points[i];
-		if (p->edges.size()>2)
+		if (p->edges.size()!=2)
 		{
 			junctions.push_back(p);
-			jset.insert(p);
-			jmap[p] = junctions.size() - 1;
 		}
 	}
 	//for each junction, find adjacent junctions
-	vector<pair<int, int>> newlinks; //collect all edges without duplicates
+	set<Triangulation::_Internal::_vertex*> vkept;
+	vector<pair<Triangulation::_Internal::_vertex*, Triangulation::_Internal::_vertex*>> ekept;
 	for (int i = 0; i < junctions.size(); ++i)
 	{
-		Triangulation::_Internal::_vertex* p = junctions[i];
-		vector<Triangulation::_Internal::_vertex*> neighbors = trace2Junctions(p, jset);
-		int k1 = jmap[p];
-		for (int j = 0; j < neighbors.size(); ++j)
+		bool bLoop = false;
+		for (int j = 0; j < junctions[i]->edges.size(); ++j)
 		{
-			int k2 = jmap[neighbors[j]];
-			if (k1 < k2)
+			Triangulation::_Internal::_edge* ed = junctions[i]->edges[j];
+			vector<Triangulation::_Internal::_vertex*> trace = trace2Junctions(ed, junctions[i]);
+
+			//remove small traces. TK!!! - I am not sure if this is a right thing to do.
+			if (trace.size() < maxSkip) continue;
+
+			if (pmap[trace[0]] < pmap[trace[trace.size() - 1]] || (bLoop == false && pmap[trace[0]] == pmap[trace[trace.size() - 1]]))
 			{
-				newlinks.push_back(pair<int, int>(k1, k2));
+				if (pmap[trace[0]] == pmap[trace[trace.size() - 1]])
+				{
+					bLoop = true;
+				}
+				else
+				{
+					trace = removeKinks(subsamplePath(trace, maxSkip)); //subsample on non-loopy trace
+				}
+
+				for (int k = 0; k < trace.size(); ++k)
+				{
+					vkept.insert(trace[k]);
+				}
+				for (int k = 1; k < trace.size(); ++k)
+				{
+					pair<Triangulation::_Internal::_vertex*, Triangulation::_Internal::_vertex*> ed(trace[k - 1], trace[k]);
+					if (ed.first != ed.second)
+					{
+						//because of loops, it is possible that two are the same. Do not include such degenerate cases.
+						ekept.push_back(ed);
+					}
+				}
 			}
 		}
 	}
 
+	vector<Triangulation::_Internal::_vertex*> veckept;
+	map<Triangulation::_Internal::_vertex*, int> mapkept;
+	for (set<Triangulation::_Internal::_vertex*>::iterator it = vkept.begin(); it != vkept.end(); it++)
+	{
+		veckept.push_back(*it);
+		mapkept[*it] = veckept.size() - 1;
+	}
+
 	if (nlhs >= 3)
 	{
-		const int dims[] = { junctions.size(), 2 };
+		const int dims[] = { veckept.size(), 2 };
 		vector<float> F(dims[0] * dims[1]);
-		for (int i = 0; i<dims[0]; ++i)
+		for (int i = 0; i < veckept.size(); ++i)
 		{
-			SetData2(F, i, 0, dims[0], dims[1], junctions[i]->p.m_X);
-			SetData2(F, i, 1, dims[0], dims[1], junctions[i]->p.m_Y);
+			SetData2(F, i, 0, dims[0], dims[1], veckept[i]->p.m_X);
+			SetData2(F, i, 1, dims[0], dims[1], veckept[i]->p.m_Y);
 		}
 		plhs[2] = StoreData(F, mxSINGLE_CLASS, 2, dims);
 	}
-	if (nlhs >= 2)
+	if (nlhs >= 4)
 	{
-		const int dims[] = { newlinks.size(), 2 };
-		vector<int> F(dims[0] * dims[1], 0);
-		for (int i = 0; i<dims[0]; ++i)
+		const int dims[] = { ekept.size(), 2 };
+		vector<int> F(dims[0] * dims[1]);
+		for (int i = 0; i < ekept.size(); ++i)
 		{
-			SetData2(F, i, 0, dims[0], dims[1], newlinks[i].first+1);
-			SetData2(F, i, 1, dims[0], dims[1], newlinks[i].second + 1);
+			int k1 = mapkept[ekept[i].first];
+			int k2 = mapkept[ekept[i].second];
+			SetData2(F, i, 0, dims[0], dims[1], k1 + 1);
+			SetData2(F, i, 1, dims[0], dims[1], k2 + 1);
 		}
 		plhs[3] = StoreData(F, mxINT32_CLASS, 2, dims);
 	}

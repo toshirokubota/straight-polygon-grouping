@@ -18,9 +18,12 @@ ParticleSimulator::Simulate(float endtime, float delta, bool bdebug)
 	}
 	while (time < endtime)
 	{
+		vector<Snapshot> shots = Snapshot::TakeSnapshot(time); //temporary
 		MovingParticle* p = MovingParticle::getNextEvent();
 		if (p == NULL) break;
 		if (p->getEvent().t > endtime) break;
+		if (p->id == 372 || p->id==330)
+			p->id += 0;
 
 		for (set<MovingParticle*>::iterator it = factory->activeSet.begin(); it != factory->activeSet.end(); ++it)
 		{
@@ -94,70 +97,66 @@ ParticleSimulator::Simulate(float endtime, float delta, bool bdebug)
 			(*it)->updateEvent();
 		}
 		factory->updateQueue.clear();
+		if (p->id == 487)
+			break;
 	}
 	return bSuccess;
 }
 
-void
-_trace(Vertex<CParticleF>* u, Vertex<CParticleF>*prev, vector<MovingParticle*>& points)
+vector<Edge<CParticleF>*>
+_trace(Edge<CParticleF>* edge)
 {
-	ParticleFactory* factory = ParticleFactory::getInstance();
-	MovingParticle* particle = factory->makeParticle(u->key, Initial, 0.0f);
-	points.push_back(particle);
-	u->color = Black;
-	CParticleF pu = u->key;
-	CParticleF qu = prev == NULL ? CParticleF(pu.m_X - 1.0, pu.m_Y) : prev->key;
-	int count = 1;
+	Vertex<CParticleF>*first = edge->u;
+	vector<Edge<CParticleF>*> path;
+
+	edge->type = Back; //mark it Back once visited.
+	path.push_back(edge);
 	while (true)
 	{
-		Vertex<CParticleF>* v = NULL;
+		//choose the first one in the clockwise order
+		Edge<CParticleF>* next = NULL;
 		float minAngle = 3 * PI;
 		//Walk in clock-wise  order.
-		for (int i = 0; i < u->aList.size(); ++i)
+		Vertex<CParticleF>* u = edge->u;
+		Vertex<CParticleF>* v = edge->v;
+		if ((int)v->key.m_X == 217 && (int)v->key.m_Y == 107)
 		{
-			Vertex<CParticleF>* w = u->aList[i]->v;
-			if (w->color == White)
+			next = NULL;
+		}
+		for (int i = 0; i < v->aList.size(); ++i)
+		{
+			Vertex<CParticleF>* w = v->aList[i]->v;
+			float ang = GetVisualAngle2(u->key.m_X, u->key.m_Y, w->key.m_X, w->key.m_Y, v->key.m_X, v->key.m_Y);
+			if (ang <= 0) ang += 2 * PI;
+			if (ang < minAngle)
 			{
-				float ang = GetVisualAngle2(qu.m_X, qu.m_Y, w->key.m_X, w->key.m_Y, pu.m_X, pu.m_Y);
-				if (ang <= 0) ang += 2 * PI;
-				if (ang < minAngle)
-				{
-					minAngle = ang;
-					v = w;
-				}
+				minAngle = ang;
+				next = v->aList[i];
 			}
 		}
-		if (v != NULL)
-		{
-			count++;
-			_trace(v, u, points);
-			MovingParticle* particle2 = factory->makeParticle(u->key, Initial, 0.0f);
-			points.push_back(particle2); //every branch will result in a new particle.
-		}
-		else
-		{
-			break;
-		}
-		qu = v->key; //update where we are coming from
+		if (next->type == Back) break; //Done.
+
+		edge = next;
+		edge->type = Back; //mark it Back once visited.
+		path.push_back(edge);
 	}
-	//at a leaf, we need to provide additional one to account for two corners
-	if (count < 2)
-	{
-		MovingParticle* particle2 = factory->makeParticle(u->key, Initial, 0.0f);
-		points.push_back(particle2);
-	}
-	//When this is the first node of the trace, the last one is extra unless this is also a leaf node.
-	if (prev == NULL && count > 2)
-	{
-		MovingParticle* p = *(points.end() - 1);
-		factory->inactivate(p);
-		points.erase(points.end() - 1);
-	}
+
+	return path;
 }
 
-bool
-initializePolygon(vector<MovingParticle*>& particles)
+vector<MovingParticle*>
+ParticleSimulator::initializePolygon(vector<Edge<CParticleF>*>& edges)
 {
+	ParticleFactory* factory = ParticleFactory::getInstance();
+	vector<MovingParticle*> particles;
+	for (int i = 0; i < edges.size(); ++i)
+	{
+		particles.push_back(factory->makeParticle(edges[i]->u->key, Initial, 0.0f));
+		if (edges[i]->u->aList.size() <= 1) //leaf node.
+		{
+			particles.push_back(factory->makeParticle(edges[i]->u->key, Initial, 0.0f));
+		}
+	}
 	//set the neighborhood
 	for (int i = 0; i < particles.size(); ++i)
 	{
@@ -192,33 +191,45 @@ initializePolygon(vector<MovingParticle*>& particles)
 		calculateBisectorVelocity(a, o, b, vx, vy);
 		p->setVelocity(vx, vy);
 	}
-	return true;
+
+	return particles;
 }
 
 /*
 Trace a forrest and create a polygon for each tree.
 */
 bool
-traceForrest(vector<Vertex<CParticleF>*>& forrest)
+traceForrest(vector<Vertex<CParticleF>*>& forrest, vector<Edge<CParticleF>*>& edges)
 {
-	for (int i = 0; i < forrest.size(); ++i)
+	for (int i = 0; i < edges.size(); ++i)
 	{
-		forrest[i]->Reset();
+		edges[i]->type = Tr;
 	}
+
 	while (true)
 	{
 
-		vector<MovingParticle*> points;
-		for (int j = 0; j < forrest.size(); ++j)
+		bool bDone = true;
+		for (int j = 0; j < edges.size(); ++j)
 		{
-			if (forrest[j]->color == White)
+			if (edges[j]->type == Tr)
 			{
-				_trace(forrest[j], NULL, points);
-				initializePolygon(points);
+				vector<Edge<CParticleF>*> path = _trace(edges[j]);
+				/*if (path.size() >= 49)
+				{
+					for (int k = 0; k < path.size(); ++k)
+					{
+						printf("%d %3.3f %3.3f %3.3f %3.3f\n", 
+							k, path[k]->u->key.m_X, path[k]->u->key.m_Y,
+							path[k]->v->key.m_X, path[k]->v->key.m_Y);
+					}
+				}*/
+				vector<MovingParticle*> points = ParticleSimulator::initializePolygon(path);
+				bDone = false;
 				break;
 			}
 		}
-		if (points.empty())
+		if (bDone)
 		{
 			break;
 		}
@@ -249,13 +260,20 @@ ParticleSimulator::Prepare(vector<CParticleF>& points, vector<pair<int, int>>& E
 		edges.push_back(edge2);
 	}
 
-	traceForrest(vertices);
+	traceForrest(vertices, edges);
+
 	time = 0.0f;
 	for (set<MovingParticle*>::iterator it = pfactory->activeSet.begin(); it != pfactory->activeSet.end(); ++it)
 	{
 		(*it)->update(delta0);
 	}
 	time += delta0;
+
+	/*for (int i = 0; i < pfactory->particles.size(); ++i)
+	{
+		MovingParticle* p = pfactory->particles[i];
+		p->print();
+	}*/
 	
 	return true;
 }

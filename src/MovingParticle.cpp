@@ -268,13 +268,14 @@ MovingParticle::_setParents(EventStruct cause)
 	}
 	else if (cause.type == SplitEvent)
 	{
+		this->parents[0] = pe;
 		/*ParticleFactory* factory = ParticleFactory::getInstance();
 		this->parents[0] = pe;
 		MovingParticle* pe2 = factory->makeParticle(pe->p, Dummy, pe->time);
 		pe2->event = pe->event;
 		factory->inactivate(pe2);*/
 		
-		float dq = Distance(pe->p, qe->p);
+		/*float dq = Distance(pe->p, qe->p);
 		float dr = Distance(pe->p, re->p);
 		MovingParticle* bridge = dq < dr ? qe : re;
 		if (ClockWise(p.m_X, p.m_Y, pe->p.m_X, pe->p.m_Y, bridge->p.m_X, bridge->p.m_Y) > 0)
@@ -286,7 +287,7 @@ MovingParticle::_setParents(EventStruct cause)
 		{
 			this->parents[0] = bridge;
 			this->parents[1] = pe;
-		}
+		}*/
 	}
 }
 
@@ -333,6 +334,8 @@ MovingParticle::findNextSplitEvent() const
 	{
 		const MovingParticle* q = *j; 
 		const MovingParticle* r = q->next;
+		if (id == 371 && q->id==487)
+			ev.t += 0;
 		if (this == q || this->prev == q) continue;
 		if ((Abs(this->created - q->created) < 1.0e-8 && Distance(this->p, q->p) < 1.0e-3) ||
 			(Abs(this->created - r->created) < 1.0e-8 && Distance(this->p, r->p) < 1.0e-3))
@@ -368,6 +371,8 @@ MovingParticle::updateEvent()
 	if (this->bUnstable) return false; //unstable particle.
 	if (this->bActive == false) return  false;
 	bool bChanged = false;
+	if (id == 371)
+		id += 0;
 	if (event.type == UnknownEvent)
 	{
 		if (isReflex())

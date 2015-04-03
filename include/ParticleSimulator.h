@@ -19,6 +19,8 @@ public:
 	bool Simulate(float endtime = 10.0f, float delta = 0.1f, bool bdebug = false);
 	float getTime() const { return time; }
 
+	static vector<MovingParticle*>	initializePolygon(vector<Edge<CParticleF>*>& edges); //temporary
+
 	vector<Snapshot> snapshots; //id-time pair.
 	vector<EventStruct> doneEvents;
 	vector<Snapshot> closedRegions;

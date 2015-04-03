@@ -78,6 +78,10 @@ public:
 		p->prev->next = p;
 		p->next->prev = p;
 		p->reflexive = GetVisualAngle2(p->prev->p.m_X, p->prev->p.m_Y, p->next->p.m_X, p->next->p.m_Y, p->p.m_X, p->p.m_Y);
+		p->dependent.insert(prev);
+		p->dependent.insert(next);
+		prev->dependent.insert(p);
+		next->dependent.insert(p);
 	}
 	CParticleF move(float delta) const
 	{
@@ -207,6 +211,8 @@ struct ParticleFactory
 		{
 
 			(*it)->bActive = false;
+			if ((*it)->id == 487)
+				p->id += 0;
 			activeSet.erase(it);
 			return true;
 		}
