@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{8099F411-2D33-4A00-931C-8138BA430EAF}</ProjectGuid>
+    <ProjectGuid>{982C38FE-8CB1-4920-96B2-D27A6805909C}</ProjectGuid>
     <RootNamespace>UniformConnectedness</RootNamespace>
     <Keyword>Win32Proj</Keyword>
     <ProjectName>UniformConnectedness</ProjectName>

@@ -33,7 +33,7 @@
     <ClCompile Include="..\src\TriangulationHelper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="RelativeNeighborhood.cpp">
+    <ClCompile Include="BootstrapNeighborhood.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

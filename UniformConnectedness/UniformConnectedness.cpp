@@ -33,28 +33,6 @@ ParticleFactory* ParticleFactory::_instance = NULL;
 
 int MovingParticle::_id = 0;
 
-mxArray*
-StoreContours(const vector<vector<CParticleF>>& polygons)
-{
-	const int dims[] = {polygons.size()};
-	mxArray* cell = mxCreateCellArray(1, (mwSize*) dims);
-	for(int i=0; i<polygons.size(); ++i)
-	{
-		int n = polygons[i].size() ;
-		const int dimsC[] = {n, 3};
-		mxArray* ar = mxCreateNumericArray(2, (mwSize*) dimsC, mxSINGLE_CLASS, mxREAL);
-		float* p = (float*) mxGetData(ar);
-		for(int j=0; j<n; ++j)
-		{
-			p[j] = polygons[i][j].m_X;
-			p[n+j] = polygons[i][j].m_Y;
-			p[2*n+j] = polygons[i][j].m_Z;
-		}
-		mxSetCell(cell, i, ar);
-	}
-	return cell;
-}
-
 vector<pair<int,int>>
 indices2pairs(vector<int> T, const int* dims)
 {
@@ -69,82 +47,127 @@ indices2pairs(vector<int> T, const int* dims)
 	return pairs;
 }
 
+vector<Snapshot>
+Connect()
+{
+	ParticleFactory* factory = ParticleFactory::getInstance();
+	vector<float> evt;
+	for (set<MovingParticle*>::iterator it = factory->activeSet.begin(); it != factory->activeSet.end(); ++it)
+	{
+		(*it)->updateEvent();
+		evt.push_back((*it)->getEvent().t);
+	}
+	sort(evt.begin(), evt.end());
+	float thres = evt[0]*10;
+	printf("thres = %f\n", thres);
+	float time = 0;
+	vector<Snapshot> parts;
+	while (time < thres)
+	{
+		MovingParticle* p = MovingParticle::getNextEvent();
+		if (p == NULL) break;
+
+		EventStruct ev = p->getEvent();
+		if (ev.type == SplitEvent && ev.q != NULL && ev.r != NULL) {
+			MovingParticle* q = (MovingParticle*)ev.q;
+			MovingParticle* r = q->getNext();
+			MovingParticle* pnb[2] = { p->getNext(), p->getPrev() };
+			MovingParticle* qnb[2] = { q->getNext(), q->getPrev() };
+			MovingParticle* rnb[2] = { r->getNext(), r->getPrev() };
+			MovingParticle* p1 = factory->makeParticle(p->project(ev.t), Split, 0.0f);
+			p1->setVelocity(0, 0);
+			MovingParticle* p2 = factory->makeParticle(p->project(ev.t), Split, 0.0f);
+			p2->setVelocity(0, 0);
+			MovingParticle::setNeighbors(p1, p, r);
+			MovingParticle::setNeighbors(p2, q, pnb[0]);
+			vector<MovingParticle*> vp1 = MovingParticle::vectorize(p1);
+			vector<MovingParticle*> vp2 = MovingParticle::vectorize(p2);
+
+			vector<vector<MovingParticle*>> areas1 = MovingParticle::closedRegions(vp1);
+			vector<vector<MovingParticle*>> areas2 = MovingParticle::closedRegions(vp2);
+			for (int i = 0; i < areas1.size(); ++i) {
+				parts.push_back(Snapshot(0.0f, areas1[i]));
+				vector<CParticleF> pnts;
+				for (int j = 0; j < areas1[i].size(); ++j) 
+				{
+					pnts.push_back(areas1[i][j]->getP0());
+				}
+				//if (ClockWise(pnts)==false)
+				{
+					for (int j = 0; j < areas1[i].size(); ++j) 
+					{
+						factory->inactivate(areas1[i][j]);
+					}
+				}
+			}
+			for (int i = 0; i < areas2.size(); ++i) {
+				parts.push_back(Snapshot(0.0f, areas2[i]));
+				vector<CParticleF> pnts;
+				for (int j = 0; j < areas2[i].size(); ++j) 
+				{
+					pnts.push_back(areas2[i][j]->getP0());
+				}
+				//if (ClockWise(pnts)==false)
+				{
+					for (int j = 0; j < areas2[i].size(); ++j) 
+					{
+						factory->inactivate(areas2[i][j]);
+					}
+				}
+			}
+
+			//restore the state
+			/*factory->inactivate(p1);
+			factory->inactivate(p2);
+			MovingParticle::setNeighbors(p, pnb[1], pnb[0]);
+			MovingParticle::setNeighbors((MovingParticle*)ev.q, qnb[1], qnb[0]);*/
+		}
+		factory->inactivate(p);
+		time = ev.t;
+	}
+	//printf("counts = %d\n", counts);
+	return parts;
+}
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
-	printf("%s: This build was compiled at %s %s\n", "StraightMedialAxis", __DATE__, __TIME__);
+	printf("%s: This build was compiled at %s %s\n", "UniformConnectedness", __DATE__, __TIME__);
 	if (nrhs < 1 || nlhs < 0)
 	{
-		mexErrMsgTxt("Usage: [X Y] = StraightMedialAxis(P, [iter delta])");
+		mexErrMsgTxt("Usage: [X Y] = UniformConnectedness(P, E)");
 		return;
 	}
 	ParticleSimulator simulator;
 	//Points
 	vector<CParticleF> points; 
 	const int* dimsP;
+	vector<float> P0;
+	mxClassID classIdP;
+	int ndimP;
+	LoadData(P0, prhs[0], classIdP, ndimP, &dimsP);
+	for (int i = 0; i < dimsP[0]; ++i)
 	{
-		vector<float> P0;
-		mxClassID classIdP;
-		int ndimP;
-		LoadData(P0, prhs[0], classIdP, ndimP, &dimsP);
-		if (dimsP[1] == ParticleDumpSize)
-		{
-			float time0 = std::numeric_limits<float>::infinity();
-			simulator.LoadParticles(P0, dimsP);
-			if (nrhs >= 2)
-			{
-				mxClassID classMode;
-				vector<Snapshot> snapshots = Snapshot::LoadSnapshots(prhs[1]);
-				simulator.Restore(snapshots);
-			}
-		}
-		else
-		{
-			for (int i = 0; i < dimsP[0]; ++i)
-			{
-				float x = GetData2(P0, i, 0, dimsP[0], dimsP[1], (float)0);
-				float y = GetData2(P0, i, 1, dimsP[0], dimsP[1], (float)0);
-				points.push_back(CParticleF(x, y));
-			}
-			//edges (indices to the points)
-			vector<pair<int, int>> E;
-			{
-				vector<int> T0;
-				mxClassID classIdT;
-				int ndimT;
-				const int* dimsT;
-				LoadData(T0, prhs[1], classIdT, ndimT, &dimsT);
-				E = indices2pairs(T0, dimsT);
-			}
-			simulator.Prepare(points, E); 
-		}
+		float x = GetData2(P0, i, 0, dimsP[0], dimsP[1], (float)0);
+		float y = GetData2(P0, i, 1, dimsP[0], dimsP[1], (float)0);
+		points.push_back(CParticleF(x, y));
 	}
-	float endtime = 2.0f;
-	if (nrhs >= 3)
-	{
-		mxClassID classMode;
-		ReadScalar(endtime, prhs[2], classMode);
-	}
-	float delta = 0.1f;
-	if (nrhs >= 4)
-	{
-		mxClassID classMode;
-		ReadScalar(delta, prhs[3], classMode);
-	}
-	bool bdebug = false;
-	if (nrhs >= 5)
-	{
-		mxClassID classMode;
-		ReadScalar(bdebug, prhs[4], classMode);
-	}
+	//edges (indices to the points)
+	vector<pair<int, int>> E;
+	vector<int> T0;
+	mxClassID classIdT;
+	int ndimT;
+	const int* dimsT;
+	LoadData(T0, prhs[1], classIdT, ndimT, &dimsT);
+	E = indices2pairs(T0, dimsT);
 
-	simulator.Simulate(endtime, delta, bdebug); 
+	simulator.Prepare(points, E);
+	vector<Snapshot> parts = Connect();
 
 	if (nlhs >= 1) 
 	{
-		plhs[0] = Snapshot::StoreSnapshots(simulator.snapshots);
+		plhs[0] = Snapshot::StoreSnapshots(parts);
 	}
-	if (nlhs >= 2)
+	/*if (nlhs >= 2)
 	{
 		plhs[1] = simulator.SaveParticles();
 	}
@@ -155,7 +178,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 	if (nlhs >= 4)
 	{
 		plhs[3] = simulator.SaveDoneEvents();
-	}
+	}*/
 
 	ParticleFactory::getInstance()->clean();
 	mexUnlock();

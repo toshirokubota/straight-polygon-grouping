@@ -156,6 +156,33 @@ MovingParticle::getNextEvent()
 	return p;
 }
 
+/*
+Hopefully a more stable way to compute the bisector velocity.
+It uses a vector direction of a colliding line segment in (dx, dy) and 
+a vector diction of a line segment being split in (ux, uy).
+It then returns the velocity in (vx, vy).
+*/
+bool
+calculateBisectorVelocity2(CParticleF o, float ox, float oy, float ux, float uy, float& vx, float& vy)
+{
+	CParticleF a(o.m_X + ox, o.m_Y + oy);
+	CParticleF b(o.m_X + ux, o.m_Y + uy);
+	CParticleF bs = bisector(o, a, b);
+	double ang = GetVisualAngle2(a.m_X, a.m_Y, b.m_X, b.m_Y, o.m_X, o.m_Y);
+	double cs = cos((PI - Abs(ang)) / 2.0);
+	bool bret = true;
+	if (cs < 0.01)
+	{
+		cs = 0.01;
+		bret = false;
+	}
+	double len = 1.0f / cs;
+	bs.m_X *= len;
+	bs.m_Y *= len;
+	vx = (float)bs.m_X;
+	vy = (float)bs.m_Y;
+	return bret;
+}
 
 bool
 calculateBisectorVelocity(CParticleF a, CParticleF o, CParticleF b, float& vx, float& vy)
@@ -334,7 +361,7 @@ MovingParticle::findNextSplitEvent() const
 	{
 		const MovingParticle* q = *j; 
 		const MovingParticle* r = q->next;
-		if (id == 371 && q->id==487)
+		if (id == 431 && (q->id==430 || q->id==428))
 			ev.t += 0;
 		if (this == q || this->prev == q) continue;
 		if ((Abs(this->created - q->created) < 1.0e-8 && Distance(this->p, q->p) < 1.0e-3) ||
@@ -371,7 +398,7 @@ MovingParticle::updateEvent()
 	if (this->bUnstable) return false; //unstable particle.
 	if (this->bActive == false) return  false;
 	bool bChanged = false;
-	if (id == 371)
+	if (id == 82)
 		id += 0;
 	if (event.type == UnknownEvent)
 	{
@@ -475,7 +502,7 @@ MovingParticle::updateEvent()
 	return event.type != UnknownEvent;
 }
 
-
+#include <ParticleDirection.h>
 
 bool 
 MovingParticle::applyEvent()
@@ -486,7 +513,6 @@ MovingParticle::applyEvent()
 	MovingParticle* r = (MovingParticle*)event.r;
 	ParticleFactory* factory = ParticleFactory::getInstance();
 	MovingParticle* pnew[2] = { NULL, NULL };
-
 	if (event.type == CollisionEvent)
 	{
 		pnew[0] = factory->makeParticle(p->p, Collide, event.t);
@@ -509,9 +535,10 @@ MovingParticle::applyEvent()
 		if (pnew[i] == NULL) continue;
 
 		pnew[i]->_setParents(event); //set parents of the new particle
+		float ox = p
 
 		float vx, vy;
-		if (calculateBisectorVelocity(pnew[i]->prev->p, pnew[i]->p, pnew[i]->next->p, vx, vy) == false)
+		if (calculateBisectorVelocity2(pnew[i]->prev->p, pnew[i]->p, pnew[i]->next->p, vx, vy) == false)
 		{
 			pnew[i]->setVelocity(std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::quiet_NaN());
 			//pnew[i]->setVelocity((q->v[0] + r->v[0]) / 2.0, (q->v[1] + r->v[1]) / 2);

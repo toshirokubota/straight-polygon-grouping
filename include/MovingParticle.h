@@ -20,6 +20,9 @@ const int ParticleDumpSize = 24;
 class MovingParticle
 {
 public:
+	friend ParticleFactory; //so that the factory can access _id.
+	friend ParticleSimulator;
+
 	bool setVelocity(float vx, float vy)
 	{
 		if (bInitialized == false)
@@ -70,6 +73,20 @@ public:
 	bool isActive() const { return bActive; }
 	bool isInitialized() const { return bInitialized; }
 	bool isReflex() const; //check if it is concave (reflex) that allows splitting of a side
+	CParticleF move(float delta) const
+	{
+		return CParticleF(p.m_X + delta*v[0], p.m_Y + delta*v[1]);
+	}
+	CParticleF project(float time) const
+	{
+		float delta = time - created;
+		return CParticleF(p0.m_X + delta*v[0], p0.m_Y + delta*v[1]);
+	}
+	bool updateEvent();
+	bool initializeVelocity();
+	bool applyEvent();
+	vector<float> dump2vector(); //store the current state as a vector of float 
+
 	static float frontPropAngle(MovingParticle* p, MovingParticle* q); //find the angle of propagating front p-q.
 	static void setNeighbors(MovingParticle* p, MovingParticle* prev, MovingParticle* next)
 	{
@@ -83,19 +100,6 @@ public:
 		prev->dependent.insert(p);
 		next->dependent.insert(p);
 	}
-	CParticleF move(float delta) const
-	{
-		return CParticleF(p.m_X + delta*v[0], p.m_Y + delta*v[1]);
-	}
-	CParticleF project(float time) const
-	{
-		float delta = time - created;
-		return CParticleF(p0.m_X + delta*v[0], p0.m_Y + delta*v[1]);
-	}
-	bool updateEvent();
-	bool initializeVelocity();
-	bool applyEvent();
-
 	static vector<MovingParticle*> vectorize(MovingParticle* p);
 	static MovingParticle* getNextEvent();
 	static vector<MovingParticle*> getNextEvents(float eps = 1.0e-6);
@@ -103,10 +107,11 @@ public:
 	static void removeUnstable(); //remove kinks and duplicates.
 	static void quickFinish(); //remove polygons with less than 4 vertices.
 	static bool sanityCheck();
-	vector<float> dump2vector(); //store the current state as a vector of float 
+	static vector<vector<MovingParticle*>> clusterParticles();
+	//static void _traceBack(MovingParticle* p, vector<MovingParticle*>& trace, set<MovingParticle*>& pset);
+	static vector<MovingParticle*> MovingParticle::traceBackPolygon(vector<MovingParticle*>& particles);
+	static vector<vector<MovingParticle*>> closedRegions(vector<MovingParticle*>& points);
 
-	friend ParticleFactory; //so that the factory can access _id.
-	friend ParticleSimulator; 
 private:
 	MovingParticle(CParticleF& p = CParticleF(0, 0, 0), MovingParticleType t = Unknown, float tm = 0.0f)
 	{
@@ -130,7 +135,7 @@ private:
 	}
 
 	float MovingParticle::_splitTime(const MovingParticle* q, float eps = 1.0e-3) const;
-	bool _onSideAt(const MovingParticle* q, float t, float eps = 1.0e-3) const;
+	bool _onSideAt(const MovingParticle* q, float t, float eps = 1.0) const;
 	void _setParents(EventStruct cause);
 
 	static float intersectSideAndLine(const MovingParticle* p, const MovingParticle* q, const MovingParticle* r);
@@ -151,11 +156,6 @@ private:
 			return true;
 		}
 	}
-
-	static vector<vector<MovingParticle*>> clusterParticles();
-	//static void _traceBack(MovingParticle* p, vector<MovingParticle*>& trace, set<MovingParticle*>& pset);
-	static vector<MovingParticle*> MovingParticle::traceBackPolygon(vector<MovingParticle*>& particles);
-	static vector<vector<MovingParticle*>> closedRegions(vector<MovingParticle*>& points);
 
 	CParticleF p0;
 	CParticleF p;
@@ -194,7 +194,7 @@ struct ParticleFactory
 		particles.push_back(particle);
 		activeSet.insert(particle);
 		pmap[particle->id] = particle;
-		if (particle->id == 72)
+		if (particle->id == 430)
 		{
 			particle->id += 0;
 		}

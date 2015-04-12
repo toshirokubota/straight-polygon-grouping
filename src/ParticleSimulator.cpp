@@ -92,7 +92,8 @@ ParticleSimulator::Simulate(float endtime, float delta, bool bdebug)
 		}
 
 		doneEvents.push_back(p->getEvent());
-		for (set<MovingParticle*>::iterator it = factory->updateQueue.begin(); it != factory->updateQueue.end(); ++it)
+		//for (set<MovingParticle*>::iterator it = factory->updateQueue.begin(); it != factory->updateQueue.end(); ++it)
+		for (set<MovingParticle*>::iterator it = factory->activeSet.begin(); it != factory->activeSet.end(); ++it)
 		{
 			(*it)->updateEvent();
 		}
