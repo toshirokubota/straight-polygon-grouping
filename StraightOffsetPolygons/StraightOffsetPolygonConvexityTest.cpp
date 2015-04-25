@@ -116,7 +116,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 				LoadData(T0, prhs[1], classIdT, ndimT, &dimsT);
 				E = indices2pairs(T0, dimsT);
 			}
-			simulator.Prepare(points, E); 
+			simulator.Prepare(points, E, 0.01f); 
 		}
 	}
 	float endtime = 2.0f;

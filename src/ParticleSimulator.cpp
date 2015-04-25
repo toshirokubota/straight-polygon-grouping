@@ -16,13 +16,15 @@ ParticleSimulator::Simulate(float endtime, float delta, bool bdebug)
 	{
 		(*it)->updateEvent();
 	}
+	int iter = 0;
 	while (time < endtime)
 	{
+		iter++;
 		vector<Snapshot> shots = Snapshot::TakeSnapshot(time); //temporary
 		MovingParticle* p = MovingParticle::getNextEvent();
 		if (p == NULL) break;
 		if (p->getEvent().t > endtime) break;
-		if (p->id == 372 || p->id==330)
+		if (p->id == 255)
 			p->id += 0;
 
 		for (set<MovingParticle*>::iterator it = factory->activeSet.begin(); it != factory->activeSet.end(); ++it)
@@ -65,29 +67,7 @@ ParticleSimulator::Simulate(float endtime, float delta, bool bdebug)
 					{
 						closedRegions.push_back(shot);
 					}
-					/*if (closedRegions.size()==1)
-					{
-					printf("\nSuspicious trace: %d\n", closedRegions.size());
-					for (int k = 0; k < tr.size(); ++k)
-					{
-					printf("%f %f %f %f %d\n",
-					tr[k]->p.m_X, tr[k]->p.m_Y, tr[k]->p0.m_X, tr[k]->p0.m_Y, tr[k]->id);
-					}
-					printf("\nSuspicious closed region: %d\n", closedRegions.size());
-					for (int k = 0; k < regions[i].size(); ++k)
-					{
-					printf("%f %f %f %f %d\n",
-					regions[i][k]->p.m_X, regions[i][k]->p.m_Y,
-					regions[i][k]->p0.m_X, regions[i][k]->p0.m_Y, regions[i][k]->id);
-					}
-					printf("\n");
-					}*/
 				}
-				/*Snapshot shot(0.0f, regions[i]);
-				if (find(closedRegions.begin(), closedRegions.end(), shot) == closedRegions.end())
-				{
-				closedRegions.push_back(shot);
-				}*/
 			}
 		}
 
@@ -98,8 +78,14 @@ ParticleSimulator::Simulate(float endtime, float delta, bool bdebug)
 			(*it)->updateEvent();
 		}
 		factory->updateQueue.clear();
-		if (p->id == 487)
-			break;
+	}
+	for (int i = 0; i < factory->particles.size(); ++i)
+	{
+		MovingParticle* p = factory->particles[i];
+		if (p->bActive == false && p->time > p->init_event_time && p->init_event_time >= 0)
+		{
+			printf("%d %f %f %f %d\n", p->id, p->created, p->time, p->init_event_time, p->event.type);
+		}
 	}
 	return bSuccess;
 }
@@ -166,33 +152,11 @@ ParticleSimulator::initializePolygon(vector<Edge<CParticleF>*>& edges)
 		MovingParticle* r = particles[i == 0 ? particles.size() - 1 : i - 1];
 		MovingParticle::setNeighbors(p, r, q);
 	}
-	//calculate velocity if necessary
+	//calculate velocity 
 	for (int i = 0; i < particles.size(); ++i)
 	{
-		MovingParticle* p = particles[i];
-		if (p->isInitialized()) continue;
-		CParticleF o = p->getP();
-		MovingParticle* q = particles[i == particles.size() - 1 ? 0 : i + 1];
-		MovingParticle* r = particles[i == 0 ? particles.size() - 1 : i - 1];
-		CParticleF b = q->getP();
-		CParticleF a = r->getP();
-		if (o == a) //leaf node
-		{
-			float ang = GetVisualDirection(o.m_X, o.m_Y, b.m_X, b.m_Y) + PI / 2.0;
-			a.m_X = o.m_X + cos(ang);
-			a.m_Y = o.m_Y + sin(ang);
-		}
-		else if (o == b) //leaf node
-		{
-			float ang = GetVisualDirection(o.m_X, o.m_Y, a.m_X, a.m_Y) - PI / 2.0;
-			b.m_X = o.m_X + cos(ang);
-			b.m_Y = o.m_Y + sin(ang);
-		}
-		float vx, vy;
-		calculateBisectorVelocity(a, o, b, vx, vy);
-		p->setVelocity(vx, vy);
+		particles[i]->initializeVelocity();
 	}
-
 	return particles;
 }
 
@@ -216,15 +180,6 @@ traceForrest(vector<Vertex<CParticleF>*>& forrest, vector<Edge<CParticleF>*>& ed
 			if (edges[j]->type == Tr)
 			{
 				vector<Edge<CParticleF>*> path = _trace(edges[j]);
-				/*if (path.size() >= 49)
-				{
-					for (int k = 0; k < path.size(); ++k)
-					{
-						printf("%d %3.3f %3.3f %3.3f %3.3f\n", 
-							k, path[k]->u->key.m_X, path[k]->u->key.m_Y,
-							path[k]->v->key.m_X, path[k]->v->key.m_Y);
-					}
-				}*/
 				vector<MovingParticle*> points = ParticleSimulator::initializePolygon(path);
 				bDone = false;
 				break;
@@ -270,12 +225,6 @@ ParticleSimulator::Prepare(vector<CParticleF>& points, vector<pair<int, int>>& E
 	}
 	time += delta0;
 
-	/*for (int i = 0; i < pfactory->particles.size(); ++i)
-	{
-		MovingParticle* p = pfactory->particles[i];
-		p->print();
-	}*/
-	
 	return true;
 }
 
@@ -460,7 +409,7 @@ ParticleSimulator::LoadParticles(vector<float>& F, const int* dims)
 		p->v[1] = vy;
 		p->time = time;
 		p->bActive = bActive;
-		p->bInitialized = bInitialized;
+		//p->bInitialized = bInitialized;
 		p->bUnstable = bUnstable;
 		p->event.type = etype;
 		p->event.t = etime;

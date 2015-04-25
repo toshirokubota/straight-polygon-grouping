@@ -9,13 +9,14 @@ using namespace std;
 #include <MiscGeometry.h>
 #include <szMiscOperations.h>
 #include <Graph.h>
+#include <ParticleDirection.h>
 
 enum MovingParticleType { Unknown, Initial, Regular, Merge, Collide, Split, Axis, Dummy };
 struct ParticleFactory;
 class ParticleSimulator;
 
 MovingParticleType int2ParticleType(int i);
-const int ParticleDumpSize = 24;
+const int ParticleDumpSize = 23;
 
 class MovingParticle
 {
@@ -23,7 +24,7 @@ public:
 	friend ParticleFactory; //so that the factory can access _id.
 	friend ParticleSimulator;
 
-	bool setVelocity(float vx, float vy)
+	/*bool setVelocity(float vx, float vy)
 	{
 		if (bInitialized == false)
 		{
@@ -37,7 +38,7 @@ public:
 		{
 			return false;
 		}
-	}
+	}*/
 	void update(float delta)
 	{
 		if (bActive && !bUnstable)
@@ -71,7 +72,7 @@ public:
 		else return NULL;
 	}
 	bool isActive() const { return bActive; }
-	bool isInitialized() const { return bInitialized; }
+	//bool isInitialized() const { return bInitialized; }
 	bool isReflex() const; //check if it is concave (reflex) that allows splitting of a side
 	CParticleF move(float delta) const
 	{
@@ -83,7 +84,7 @@ public:
 		return CParticleF(p0.m_X + delta*v[0], p0.m_Y + delta*v[1]);
 	}
 	bool updateEvent();
-	bool initializeVelocity();
+	//bool initializeVelocity();
 	bool applyEvent();
 	vector<float> dump2vector(); //store the current state as a vector of float 
 
@@ -99,6 +100,8 @@ public:
 		p->dependent.insert(next);
 		prev->dependent.insert(p);
 		next->dependent.insert(p);
+		p->rear = prev->front;
+		p->front = next->rear;
 	}
 	static vector<MovingParticle*> vectorize(MovingParticle* p);
 	static MovingParticle* getNextEvent();
@@ -127,16 +130,19 @@ private:
 		created = tm;
 		time = created;
 		bActive = true;
-		bInitialized = false;
+		//bInitialized = false;
 		bUnstable = false;
-		bNeedUpdate = true;
+		//bNeedUpdate = true;
+		init_event_time = -1;
 		reflexive = std::numeric_limits<float>::quiet_NaN();
 		event = EventStruct(std::numeric_limits<float>::infinity(), UnknownEvent, this);
 	}
 
-	float MovingParticle::_splitTime(const MovingParticle* q, float eps = 1.0e-3) const;
-	bool _onSideAt(const MovingParticle* q, float t, float eps = 1.0) const;
+	float MovingParticle::_splitTime(const MovingParticle* q, const MovingParticle* r, float eps = 1.0e-3) const;
+	bool _onSideAt(const MovingParticle* q, float t, float eps = 1.0e-3) const;
 	void _setParents(EventStruct cause);
+	bool calculateVelocity();
+	bool initializeVelocity();
 
 	static float intersectSideAndLine(const MovingParticle* p, const MovingParticle* q, const MovingParticle* r);
 	static void traceAndHandleUnstable(MovingParticle* p, vector<MovingParticle*>& removed);
@@ -163,14 +169,18 @@ private:
 	MovingParticle* prev;
 	MovingParticle* parents[2];
 	MovingParticle* children[2];
+	ParticleDirection rear;
+	ParticleDirection front;
+
 	int id;
 	MovingParticleType type;
 	float created; //time this is created.
 	float time;
-	bool bInitialized; //false until its velocity is set.
+	float init_event_time;
+	//bool bInitialized; //false until its velocity is set.
 	bool bActive; //true if it is still moving.
 	bool bUnstable; //true if the bisector angle was too tight for accurate velocity calculation.
-	bool bNeedUpdate; //true if the event may need to be udpated.
+	//bool bNeedUpdate; //true if the event may need to be udpated.
 	float reflexive; //measure of reflexivenessbReflexive
 	EventStruct event;
 	float v[2];
@@ -194,7 +204,7 @@ struct ParticleFactory
 		particles.push_back(particle);
 		activeSet.insert(particle);
 		pmap[particle->id] = particle;
-		if (particle->id == 430)
+		if (particle->id == 443)
 		{
 			particle->id += 0;
 		}

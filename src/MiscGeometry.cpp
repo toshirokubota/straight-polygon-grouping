@@ -183,7 +183,7 @@ isParallel(CParticleF& a, CParticleF& b, CParticleF& c, CParticleF& d, float pre
 
 /*
 Check if a moving side (p-q) and a moving particle (a with velocity (vx,vy)) are approaching to each other.
-An important assumption is that the side moves to the left when you are at p facing q. This corresponds to q = p->next->p.
+An important assumption is that the side moves to the rear when you are at p facing q. This corresponds to q = p->next->p.
 */
 bool
 isApproaching(CParticleF& a, float vx, float vy, CParticleF& p, CParticleF& q)

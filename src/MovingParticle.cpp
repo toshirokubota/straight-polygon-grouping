@@ -65,7 +65,7 @@ MovingParticle::dump2vector()
 	v.push_back(time);
 	v.push_back(reflexive);
 	v.push_back(bActive ? 1.0f : 0.0f);
-	v.push_back(bInitialized ? 1.0f : 0.0f);
+	//v.push_back(bInitialized ? 1.0f : 0.0f);
 	v.push_back(bUnstable ? 1.0f : 0.0f);
 	v.push_back(parents[0] == NULL ? -1 : parents[0]->id);
 	v.push_back(parents[1] == NULL ? -1 : parents[1]->id);
@@ -157,55 +157,77 @@ MovingParticle::getNextEvent()
 }
 
 /*
-Hopefully a more stable way to compute the bisector velocity.
-It uses a vector direction of a colliding line segment in (dx, dy) and 
-a vector diction of a line segment being split in (ux, uy).
-It then returns the velocity in (vx, vy).
+Takes are of end-points (leaf nodes) and set rear and front directions.
+This should be called at the very beginning of the simulation after forrests are traced.
 */
 bool
-calculateBisectorVelocity2(CParticleF o, float ox, float oy, float ux, float uy, float& vx, float& vy)
+MovingParticle::initializeVelocity()
 {
-	CParticleF a(o.m_X + ox, o.m_Y + oy);
-	CParticleF b(o.m_X + ux, o.m_Y + uy);
-	CParticleF bs = bisector(o, a, b);
-	double ang = GetVisualAngle2(a.m_X, a.m_Y, b.m_X, b.m_Y, o.m_X, o.m_Y);
-	double cs = cos((PI - Abs(ang)) / 2.0);
-	bool bret = true;
-	if (cs < 0.01)
+	float eps = 1.0e-6;
+	if (Distance(p, prev->p) < eps && Distance(p, next->p) < eps) //a single point. Cann't continue
 	{
-		cs = 0.01;
-		bret = false;
+		v[0] = v[1] = 0;
+		return false;
 	}
-	double len = 1.0f / cs;
-	bs.m_X *= len;
-	bs.m_Y *= len;
-	vx = (float)bs.m_X;
-	vy = (float)bs.m_Y;
-	return bret;
+	else
+	{
+		if (Distance(p, next->p) > eps)
+		{
+			CParticleF d = NormalizedDirection(next->p, p);
+			front.x = d.m_X;
+			front.y = d.m_Y;
+		}
+		else //p==next
+		{
+			//leaf
+			float ang = GetVisualDirection(p.m_X, p.m_Y, prev->p.m_X, prev->p.m_Y) - PI / 2.0;
+			CParticleF d = perpDirection(prev->p, p);
+			front.x = cos(ang);
+			front.y = sin(ang);
+		}
+		if (Distance(p, prev->p) > eps)
+		{
+			CParticleF d = NormalizedDirection(p, prev->p);
+			rear.x = d.m_X;
+			rear.y = d.m_Y;
+		}
+		else//p==prev
+		{
+			//leaf
+			float ang = GetVisualDirection(p.m_X, p.m_Y, next->p.m_X, next->p.m_Y) + PI / 2.0;
+			CParticleF d = perpDirection(p, next->p);
+			rear.x = -cos(ang);
+			rear.y = -sin(ang);
+		}
+		bool b = calculateVelocity();
+		/*printf("%d:(%2.2f,%2.2f)<=(%2.2f,%2.2f)=>(%2.2f,%2.2f), L=(%2.2f,%2.2f), R=(%2.2f,%2.2f), v=(%2.2f,%2.2f)\n",
+			id, prev->p.m_X, prev->p.m_Y, p.m_X, p.m_Y, next->p.m_X, next->p.m_Y,
+			rear.x, rear.y, front.x, front.y, v[0], v[1]);*/
+			
+		return b;
+	}
 }
 
 bool
-calculateBisectorVelocity(CParticleF a, CParticleF o, CParticleF b, float& vx, float& vy)
+MovingParticle::calculateVelocity()
 {
-	double eps = 1.0e-3;
-	if (Distance(o, a) < eps || Distance(o, b) < eps) //too close
-	{
-		return false;
-	}
-	CParticleF bs = bisector(o, a, b);
-	double ang = GetVisualAngle2(a.m_X, a.m_Y, b.m_X, b.m_Y, o.m_X, o.m_Y);
+	CParticleF b(p.m_X + front.x, p.m_Y + front.y);
+	CParticleF a(p.m_X-rear.x, p.m_Y - rear.y);
+	CParticleF bs = bisector(p, a, b);
+	double ang = GetVisualAngle2(a.m_X, a.m_Y, b.m_X, b.m_Y, p.m_X, p.m_Y);
 	double cs = cos((PI - Abs(ang)) / 2.0);
 	bool bret = true;
-	if (cs < 0.01)
+	float eps = 0.0001;
+	if (cs < eps)
 	{
-		cs = 0.01;
+		cs = eps;
 		bret = false;
 	}
 	double len = 1.0f / cs;
 	bs.m_X *= len;
 	bs.m_Y *= len;
-	vx = (float) bs.m_X;
-	vy = (float) bs.m_Y;
+	v[0] = (float)bs.m_X; 
+	v[1] = (float)bs.m_Y;
 	return bret;
 }
 
@@ -224,59 +246,44 @@ This utility method check when a moving particle (P) with a moving line of Q and
 It returns the time of the split/collision.
 */
 float 
-MovingParticle::_splitTime(const MovingParticle* q, float eps) const
+MovingParticle::_splitTime(const MovingParticle* q, const MovingParticle* r, float eps) const
 {
-	MovingParticle* r = q->next;
-	CParticleF po = this->p;
-	CParticleF qo = q->p;
-	CParticleF ro = r->p;
-
-	CParticleF qrv = perpDirection(qo, ro);
-	float d = 1.0f; //Max(Distance(po, qo), Distance(po, ro)); //find the bounding limit
-	CParticleF poly[4];
-	//make a 3D plane with a unit-slant
-	poly[0] = qo;
-	poly[1] = ro;
-	poly[2].m_X = ro.m_X + d * qrv.m_X;
-	poly[2].m_Y = ro.m_Y + d * qrv.m_Y;
-	poly[2].m_Z = d;
-	poly[3].m_X = qo.m_X + d * qrv.m_X;
-	poly[3].m_Y = qo.m_Y + d * qrv.m_Y;
-	poly[3].m_Z = d;
-
-	float mind = std::numeric_limits<float>::infinity();
-	int idx = -1;
-	for (int i = 0; i < 4; ++i)
+	ParticleDirection u(-q->front.y, q->front.x);
+	float dq = q->v[0] * u.x + q->v[1] * u.y;
+	if (dq < 0)
 	{
-		float dval = Distance(poly[i], po);
-		if (dval < mind)
-		{
-			mind = dval;
-			idx = i;
-		}
+		u.x = -u.x;
+		u.y = -u.y;
+		dq = -dq;
 	}
+	float dp = (u.x * v[0] + u.y * v[1]);
+	if (dp >= 0) return std::numeric_limits<float>::infinity(); //moving along the same direction
 
-	CParticleF z1 = perp2Plane(poly[idx], poly[(idx + 1) % 4], poly[(idx + 2) % 4]);
-	CParticleF z2 = perp2Plane(poly[idx], poly[(idx + 2) % 4], poly[(idx + 3) % 4]);
-	CParticleF z3 = perp2Plane(poly[idx], poly[(idx + 3) % 4], poly[(idx + 1) % 4]);
-	CParticleF z((z1.m_X + z2.m_X + z3.m_X) / 3, (z1.m_Y + z2.m_Y + z3.m_Y) / 3, (z1.m_Z + z2.m_Z + z3.m_Z) / 3);
-	CParticleF u(this->v[0], this->v[1], 1.0f);
-	float t0 = intersectPlaneAndLine(poly[idx], z, po, u);
-	return t0;
+	ParticleDirection ve((1 - dp)*u.x, (1 - dp)*u.y);
+
+	CParticleF y = Closest2Line(q->p, r->p, p);
+	float deriv = (y.m_X - p.m_X)*ve.x + (y.m_Y - p.m_Y) * ve.y;
+	if (deriv >= 0) return std::numeric_limits<float>::infinity(); //moving away
+
+	float dval = Distance(p, y);
+	return dval / (1 - dp);
 }
 
+/*
+*/
 /*
 Check if the particle P will be located on the side formed by Q and its next at time t from the current time.
 */
 bool
 MovingParticle::_onSideAt(const MovingParticle* q, float t, float eps) const
 {
-	MovingParticle* r = q->next;
 	CParticleF p2 = this->move(t);
-	CParticleF q2a = q->move(t);
-	CParticleF r2a = r->move(t);
-	float dval = Distance2LineSegment(q2a, r2a, p2);
-	return dval < eps;
+	CParticleF q2 = q->move(t);
+	CParticleF r2 = q->next->move(t);
+	float d = Distance2LineSegment(q2, r2, p2);
+	return d <= 0.03f; //TK NEED TO FIX THIS.
+	//pair<float, float> param = _IntersectConvexPolygon::intersect(p, p2, q2, r2);
+	//return param.second >= 0.0f && param.second <= 1.0f;
 }
 
 /*
@@ -326,7 +333,7 @@ float
 MovingParticle::intersectSideAndLine(const MovingParticle* p, const MovingParticle* q, const MovingParticle* r)
 {
 	float t = std::numeric_limits<float>::infinity();
-	float t0 = p->_splitTime(q);
+	float t0 = p->_splitTime(q, r);
 	if (t0 > 0)
 	{
 		if (p->_onSideAt(q, t0))
@@ -345,10 +352,14 @@ MovingParticle::findNextEdgeEvent() const
 	CParticleF q2(q0.m_X + next->v[0], q0.m_Y + next->v[1]);
 	pair<float,float> param = _IntersectConvexPolygon::intersect(p, p2, q0, q2);
 	EventStruct ev(std::numeric_limits<float>::infinity(), CollisionEvent, this, this->next);
-	if (param.first > 0 && param.second > 0)
+	if (param.first >= 0.0f && param.second >= 0.0f)
 	{
 		ev.t = time + param.first;
 	}
+	/*if (id == 338)
+	{
+		printf("%d: %f %f %f %f %f %f %f %f %f %f\n", id, param.first, param.second, p.m_X, p.m_Y, p2.m_X, p2.m_Y, q0.m_X, q0.m_Y, q2.m_X, q2.m_Y);
+	}*/
 	return ev;
 }
 
@@ -361,8 +372,8 @@ MovingParticle::findNextSplitEvent() const
 	{
 		const MovingParticle* q = *j; 
 		const MovingParticle* r = q->next;
-		if (id == 431 && (q->id==430 || q->id==428))
-			ev.t += 0;
+		if (id == 39 && (q->id == 89))
+			intersectSideAndLine(this, q, r);
 		if (this == q || this->prev == q) continue;
 		if ((Abs(this->created - q->created) < 1.0e-8 && Distance(this->p, q->p) < 1.0e-3) ||
 			(Abs(this->created - r->created) < 1.0e-8 && Distance(this->p, r->p) < 1.0e-3))
@@ -397,109 +408,83 @@ MovingParticle::updateEvent()
 	//check if the event needs to be updated. If not, then simply return.
 	if (this->bUnstable) return false; //unstable particle.
 	if (this->bActive == false) return  false;
-	bool bChanged = false;
-	if (id == 82)
+	bool bFirst = event.type == UnknownEvent;
+	if (id == 255 && next->id==765 || id==765 && next->id==187)
 		id += 0;
-	if (event.type == UnknownEvent)
+
+	if (event.t >= std::numeric_limits<float>::infinity())
 	{
-		if (isReflex())
+		EventStruct ev2;
+		if (isReflex()) 
 		{
-			event = findNextSplitEvent();
+			ev2 = findNextSplitEvent();
+		}
+		EventStruct ev1 = findNextEdgeEvent();
+		if (ev1.t <= ev2.t) 
+		{
+			event = ev1;
 		}
 		else
 		{
-			event = findNextEdgeEvent();
-		}
-		bChanged = true;
-	}
-	else if (event.type == CollisionEvent)
-	{
-		EventStruct event2 = findNextEdgeEvent();
-		if (event.q != event2.q)
-		{
-			event = event2;
-			bChanged = true;
+			event = ev2;
 		}
 	}
-	else if (event.type == SplitEvent)
+	else 
 	{
-		if (event.q == NULL || event.r == NULL)
+		EventStruct ev1;
+		EventStruct ev2;
+		EventStruct ev3;
+		float t0 = event.t;
+		bool bChanged = false;
+		if (isReflex() && (event.q->next != event.r || event.q->isActive() == false || event.r->isActive() == false))
 		{
-			event = findNextSplitEvent();
+			ev2 = findNextSplitEvent();
+			ev1 = findNextEdgeEvent();
 			bChanged = true;
 		}
-		//Nov 25th.
-		//The event time for split can get smaller in a situation like this.
-		//Segment a-b is moving along the collision path, but the length gets smaller until either a or b experience collision.
-		//At the time, the same segment's angle widen and it becomes possible to collide with c.
-		//The speed of the side does not change but the visual angle can enlarge, thus enabling a collision.
-		//else if (event.q->bActive && event.q->next == event.r)
-		//{
-			//no need to re-calculate
-		//}
-		else 
+		if (event.type == CollisionEvent && (this->next != event.q || event.q->isActive() == false))
 		{
-			EventStruct event2 = findNextSplitEvent();
-			if (event.q->bActive && event.q->next == event.r) //the current event is alive
+			if (id == 292)
+				id += 0;
+			ev1 = findNextEdgeEvent();
+			bChanged = true;
+		}
+		if (this->next->p == this->next->p0) //newly created neighbor
+		{
+			ev3 = findNextEdgeEvent();
+			if (ev3.t < t0)
 			{
-				if (event.t > event2.t) //only replace if it is strictly earlier
-				{
-					event = event2; 
-					bChanged = true;
-				}
-			}
-			else //the current event segment is destroyed, but the new one is a split sub-segment
-			{
-				bool b1 = false;
-				float t1 = std::numeric_limits<float>::quiet_NaN();
-				if (event.q->bActive)
-				{
-					t1 = _splitTime(event.q);
-					if (t1 >= 0)
-					{
-						b1 = _onSideAt(event.q, t1);
-					}
-				}
-				bool b2 = false;
-				float t2 = std::numeric_limits<float>::quiet_NaN();
-				if (event.r->bActive)
-				{
-					t2 = _splitTime(event.r->prev);
-					if (t2 >= 0)
-					{
-						b2 = _onSideAt(event.r->prev, t2);
-					}
-				}
-				if (b1)
-				{
-					event.r = event.q->next;
-					event.t = t1 + time;
-				}
-				else if (b2)
-				{
-					event.q = event.r->prev;
-					event.t = t2 + time;
-				}
-				else
-				{
-					event = event2;
-				}
 				bChanged = true;
 			}
 		}
+		if (bChanged)
+		{
+			if (ev1.t < ev2.t && ev1.t < ev3.t) // && ev1.t < std::numeric_limits<float>::infinity())
+			{
+				event = ev1;
+			}
+			else if (ev2.t < ev1.t && ev2.t < ev3.t)
+			{
+				event = ev2;
+			}
+			else
+			{
+				event = ev3;
+			}
+		}
+		//event.t = Min(t0, event.t); //event time cannot increase.
 	}
-	if (bChanged == true)
+
+	if (bFirst) {
+		this->init_event_time = event.t;
+	}
+
+	if (id == 225)
 	{
-		if (event.q != NULL)
-		{
-			((MovingParticle*)event.q)->dependent.insert(this);
-		}
-		if (event.type == SplitEvent && event.r != NULL)
-		{
-			((MovingParticle*)event.r)->dependent.insert(this);
-		}
+		printf("\t%d:", id);
+		event.print();
 	}
-	return event.type != UnknownEvent;
+	return true;
 }
 
 #include <ParticleDirection.h>
@@ -535,18 +520,9 @@ MovingParticle::applyEvent()
 		if (pnew[i] == NULL) continue;
 
 		pnew[i]->_setParents(event); //set parents of the new particle
-		float ox = p
-
-		float vx, vy;
-		if (calculateBisectorVelocity2(pnew[i]->prev->p, pnew[i]->p, pnew[i]->next->p, vx, vy) == false)
+		if (pnew[i]->calculateVelocity() == false)
 		{
-			pnew[i]->setVelocity(std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::quiet_NaN());
-			//pnew[i]->setVelocity((q->v[0] + r->v[0]) / 2.0, (q->v[1] + r->v[1]) / 2);
 			pnew[i]->bUnstable = true;
-		}
-		else
-		{
-			pnew[i]->setVelocity(vx, vy);
 		}
 	}
 
@@ -683,27 +659,6 @@ MovingParticle::removeUnstable()
 	}
 }
 
-bool
-MovingParticle::initializeVelocity()
-{
-	bool bRet = false;
-	if (bInitialized == false)
-	{
-		float vx, vy;
-		if (calculateBisectorVelocity(this->prev->p, this->p, this->next->p, vx, vy) == false)
-		{
-			this->setVelocity(0.0f, 0.0f); // (thi->v[0] + r->v[0]) / 2.0, (q->v[1] + r->v[1]) / 2);
-			this->bUnstable = true;
-		}
-		else
-		{
-			this->setVelocity(vx, vy);
-			bRet = true;
-		}
-	}
-	return bRet;
-}
-
 void
 MovingParticle::quickFinish()
 {
@@ -745,6 +700,8 @@ MovingParticle::sanityCheck()
 	bool bdone = true;
 	for (set<MovingParticle*>::iterator it = factory->activeSet.begin(); it != factory->activeSet.end(); ++it)
 	{
+		if ((*it)->next == NULL)
+			bdone = true;
 		CParticleF p = (*it)->p;
 		CParticleF p2 = (*it)->next->p;
 
@@ -753,6 +710,8 @@ MovingParticle::sanityCheck()
 		it2++;
 		for (; it2 != factory->activeSet.end(); ++it2)
 		{
+			if ((*it2)->next == NULL)
+				bdone = true;
 			CParticleF q = (*it2)->p;
 			CParticleF q2 = (*it2)->next->p;
 			pair<float, float> param = _IntersectConvexPolygon::intersect(p, p2, q, q2);
@@ -762,15 +721,14 @@ MovingParticle::sanityCheck()
 				float dval = Distance2Line(q, q2, p);
 				if(dval > 0.01)
 				{
-
 					printf("sanityCheck(): crossing at %d(%3.3f,%3.3f)-%d(%3.3f,%3.3f) and %d(%3.3f,%3.3f)-%d(%3.3f,%3.3f) with degree of [%3.3f,%3.3f] and %3.3f.\n",
 						(*it)->id, p.m_X, p.m_Y, (*it)->next->id, p2.m_X, p2.m_Y,
 						(*it2)->id, q.m_X, q.m_Y, (*it2)->next->id, q2.m_X, q2.m_Y,
 						param.first, param.second, dval);
 					(*it)->event.print();
-					(*it)->next->event.print();
-					(*it2)->event.print();
-					(*it2)->next->event.print();
+					//(*it)->next->event.print();
+					//(*it2)->event.print();
+					//(*it2)->next->event.print();
 					return false;
 				}
 			}
