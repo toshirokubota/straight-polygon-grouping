@@ -305,25 +305,11 @@ MovingParticle::_setParents(EventStruct cause)
 	else if (cause.type == SplitEvent)
 	{
 		this->parents[0] = pe;
-		/*ParticleFactory* factory = ParticleFactory::getInstance();
+	}
+	else if (cause.type == CollisionEvent)
+	{
 		this->parents[0] = pe;
-		MovingParticle* pe2 = factory->makeParticle(pe->p, Dummy, pe->time);
-		pe2->event = pe->event;
-		factory->inactivate(pe2);*/
-		
-		/*float dq = Distance(pe->p, qe->p);
-		float dr = Distance(pe->p, re->p);
-		MovingParticle* bridge = dq < dr ? qe : re;
-		if (ClockWise(p.m_X, p.m_Y, pe->p.m_X, pe->p.m_Y, bridge->p.m_X, bridge->p.m_Y) > 0)
-		{
-			this->parents[0] = pe;
-			this->parents[1] = bridge;
-		}
-		else
-		{
-			this->parents[0] = bridge;
-			this->parents[1] = pe;
-		}*/
+		this->parents[1] = qe;
 	}
 }
 
@@ -403,13 +389,18 @@ MovingParticle::findNextSplitEvent() const
 	//if the event location is close to a vertex of being split, then make it as Collision
 	if(ev.q != NULL)
 	{
-		if (ev.p->id == 246)
-			ev.t += 0;
 		float t0 = ev.t - time;
 		CParticleF p0 = move(t0);
-		if (Distance(p0, ev.q->move(t0)) < MP_EPSILON || Distance(p0, ev.r->move(t0)) < MP_EPSILON)
+		float dq = Distance(p0, ev.q->move(t0));
+		float dr = Distance(p0, ev.r->move(t0));
+		if ( dq < MP_EPSILON || dr < MP_EPSILON)
 		{
 			ev.type = CollisionEvent;
+			if (dr < dq)
+			{
+				ev.q = ev.r;
+				ev.r = ev.q->next;
+			}
 		}
 	}
 
@@ -532,15 +523,7 @@ MovingParticle::applyEvent()
 	{
 		pnew[0] = factory->makeParticle(this->p, Split, event.t);
 		pnew[1] = factory->makeParticle(this->p, Split, event.t);
-		MovingParticle* x;
-		if (Distance(p->p, event.q->p) < Distance(p->p, event.r->p))
-		{
-			x = (MovingParticle*) event.q;
-		}
-		else
-		{
-			x = (MovingParticle*) event.r;
-		}
+		MovingParticle* x = (MovingParticle*)event.q;
 		MovingParticle* xn = x->next;
 		MovingParticle* xp = x->prev;
 		/*printf("%d, %d, %d\n", p->id, event.q->id, event.r->id);
