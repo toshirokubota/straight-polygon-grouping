@@ -114,6 +114,7 @@ public:
 	//static void _traceBack(MovingParticle* p, vector<MovingParticle*>& trace, set<MovingParticle*>& pset);
 	static vector<MovingParticle*> MovingParticle::traceBackPolygon(vector<MovingParticle*>& particles);
 	static vector<vector<MovingParticle*>> closedRegions(vector<MovingParticle*>& points);
+	static pair<MovingParticle*, float> findIntersection(MovingParticle* p, MovingParticle* q);
 
 private:
 	MovingParticle(CParticleF& p = CParticleF(0, 0, 0), MovingParticleType t = Unknown, float tm = 0.0f)
@@ -146,6 +147,7 @@ private:
 
 	static float intersectSideAndLine(const MovingParticle* p, const MovingParticle* q, const MovingParticle* r);
 	static void traceAndHandleUnstable(MovingParticle* p, vector<MovingParticle*>& removed);
+	static bool correctOvershoot(MovingParticle* p, MovingParticle* q, pair<float, float> param);
 	EventStruct findNextEdgeEvent() const;
 	EventStruct findNextSplitEvent() const;
 	bool addDependent(MovingParticle* p)

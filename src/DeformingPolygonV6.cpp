@@ -440,7 +440,7 @@ NextEvent(MovingParticle* p, vector<MovingParticle*>& particles, float period)
 				{
 					if(q == p->next)
 					{
-						ev = EventStruct(t, CollisionEvent, p, particles[j]);
+						ev = EventStruct(t, EdgeEvent, p, particles[j]);
 					}
 					else
 					{
@@ -455,7 +455,7 @@ NextEvent(MovingParticle* p, vector<MovingParticle*>& particles, float period)
 					}
 					else if (q == p->next)
 					{
-						ev = EventStruct(t, CollisionEvent, p, particles[j]);
+						ev = EventStruct(t, EdgeEvent, p, particles[j]);
 					}
 				}
 			}
@@ -710,7 +710,7 @@ bool need2Update(map<MovingParticle*,int>& pmap, MovingParticle* p)
 {
 	if(p->bDirty) return true;
 	EventStruct ev = p->event;
-	if(ev.type == CollisionEvent)
+	if(ev.type == EdgeEvent)
 	{
 		if(pmap.find(ev.p)!=pmap.end() && pmap.find(ev.q)!=pmap.end())
 		{
@@ -805,7 +805,7 @@ findNextEvent(vector<MovingParticle*>& particles)
 		}
 		else if (Abs(particles[i]->event.t - ev.t) < 1.0e-5) //let collision takes precedence over split
 		{
-			if (ev.type == SplitEvent && particles[i]->event.type == CollisionEvent)
+			if (ev.type == SplitEvent && particles[i]->event.type == EdgeEvent)
 			{
 				ev = particles[i]->event;
 			}
@@ -870,7 +870,7 @@ DeformingPolygon::deform(float period)
 		if (current.p->id == paid)
 			paid += 0;
 		MovingParticle* pnew[2] = { NULL, NULL };
-		if (current.type == CollisionEvent)
+		if (current.type == EdgeEvent)
 		{
 			pnew[0] = applyCollision(current.p, delta);
 		}
@@ -945,7 +945,7 @@ DeformingPolygon::deform(float period, float interval)
 		{			
 			pnew[0] = applyInterval(particles[0], delta);
 		}
-		else if (current.type == CollisionEvent)
+		else if (current.type == EdgeEvent)
 		{
 			pnew[0] = applyCollision(current.p, delta);
 		}

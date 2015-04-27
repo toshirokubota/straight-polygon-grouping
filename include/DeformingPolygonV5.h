@@ -12,7 +12,7 @@ namespace StraightAxis
 	struct MovingParticle;
 	struct DeformingPolygon;
 
-	enum EventType {UnknownEvent, CollisionEvent, SplitEvent, MergeEvent, IntervalEvent};
+	enum EventType {UnknownEvent, EdgeEvent, SplitEvent, MergeEvent, IntervalEvent};
 
 	struct EventStruct
 	{

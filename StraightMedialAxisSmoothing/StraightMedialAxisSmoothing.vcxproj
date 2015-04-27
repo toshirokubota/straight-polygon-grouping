@@ -179,6 +179,7 @@
   <ItemGroup>
     <ClCompile Include="..\src\ContourEQW.cpp" />
     <ClCompile Include="..\src\DeformingPolygonV6.cpp" />
+    <ClCompile Include="..\src\EventStruct.cpp" />
     <ClCompile Include="..\src\IntersectionConvexPolygons.cpp" />
     <ClCompile Include="..\src\szConvexHull2D.cpp" />
     <ClCompile Include="..\src\szMexUtility.cpp" />

@@ -3,11 +3,11 @@
 class MovingParticle;
 
 /*
-CollisionEvent: two adjacent vertices collide and replaced by a new one.
+EdgeEvent: two adjacent vertices collide and replaced by a new one.
 SplitEvent: a concave vertex collide with a side and split the polygon into two.
-MergeEvent: a vertex collide with a side that is parallel to the colliding vertex.
+CollisionEvent: a SPLIT event but two vertices are close enough they should vanish into a new particle.
 */
-enum EventType { UnknownEvent, CollisionEvent, SplitEvent, MergeEvent };
+enum EventType { UnknownEvent, EdgeEvent, SplitEvent, CollisionEvent };
 
 EventType int2EventType(int i);
 

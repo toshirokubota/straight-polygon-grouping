@@ -10,13 +10,13 @@ EventType int2EventType(int i)
 	case 0:
 		break;
 	case 1:
-		type = CollisionEvent;
+		type = EdgeEvent;
 		break;
 	case 2:
 		type = SplitEvent;
 		break;
 	case 3:
-		type = MergeEvent;
+		type = CollisionEvent;
 		break;
 	default:
 		break;
@@ -54,13 +54,23 @@ void EventStruct::print()
 			t, p->getId(), pp.m_X, pp.m_Y, q->getId(), qp.m_X, qp.m_Y, r->getId(), rp.m_X, rp.m_Y,
 			c1==NULL ? -1: c1->getId(), c2==NULL ? -1: c2->getId());
 	}
-	else if (type == CollisionEvent)
+	else if (type == EdgeEvent)
 	{
 		CParticleF qp = q->getP();
 		MovingParticle* c1 = p->getChildren(0);
-		printf("event>> Collision @ %f: %d(%3.3f,%3.3f)->%d(%3.3f,%3.3f) => %d\n",
+		printf("event>> Edge @ %f: %d(%3.3f,%3.3f)->%d(%3.3f,%3.3f) => %d\n",
 			t, p->getId(), pp.m_X, pp.m_Y, q->getId(), qp.m_X, qp.m_Y,
 			c1==NULL ? -1: c1->getId());
+	}
+	else if (type == CollisionEvent)
+	{
+		CParticleF qp = q->getP();
+		CParticleF rp = r->getP();
+		MovingParticle* c1 = p->getChildren(0);
+		MovingParticle* c2 = p->getChildren(1);
+		printf("event>> Collision @ %f: %d(%3.3f,%3.3f)->%d(%3.3f,%3.3f), %d(%3.3f,%3.3f) => %d, %d\n",
+			t, p->getId(), pp.m_X, pp.m_Y, q->getId(), qp.m_X, qp.m_Y, r->getId(), rp.m_X, rp.m_Y,
+			c1 == NULL ? -1 : c1->getId(), c2 == NULL ? -1 : c2->getId());
 	}
 	else
 	{

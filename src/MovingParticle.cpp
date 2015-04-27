@@ -9,6 +9,8 @@ using namespace std;
 #include <szMiscOperations.h>
 #include <IntersectionConvexPolygons.h>
 #include <Graph.h>
+#include <ParticleDirection.h>
+const float MP_EPSILON = 1.0e-2;
 
 //enum MovingParticleType { Unknown, Initial, Regular, Merge, Collide, Split, Axis, Dummy };
 MovingParticleType int2ParticleType(int i)
@@ -281,7 +283,7 @@ MovingParticle::_onSideAt(const MovingParticle* q, float t, float eps) const
 	CParticleF q2 = q->move(t);
 	CParticleF r2 = q->next->move(t);
 	float d = Distance2LineSegment(q2, r2, p2);
-	return d <= 0.03f; //TK NEED TO FIX THIS.
+	return d <= MP_EPSILON; //TK NEED TO FIX THIS.
 	//pair<float, float> param = _IntersectConvexPolygon::intersect(p, p2, q2, r2);
 	//return param.second >= 0.0f && param.second <= 1.0f;
 }
@@ -295,7 +297,7 @@ MovingParticle::_setParents(EventStruct cause)
 	MovingParticle* pe = (MovingParticle*)cause.p;
 	MovingParticle* qe = (MovingParticle*)cause.q;
 	MovingParticle* re = (MovingParticle*)cause.r;
-	if (cause.type == CollisionEvent)
+	if (cause.type == EdgeEvent)
 	{
 		this->parents[0] = pe;
 		this->parents[1] = qe;
@@ -351,7 +353,7 @@ MovingParticle::findNextEdgeEvent() const
 	CParticleF q0 = next->p;
 	CParticleF q2(q0.m_X + next->v[0], q0.m_Y + next->v[1]);
 	pair<float,float> param = _IntersectConvexPolygon::intersect(p, p2, q0, q2);
-	EventStruct ev(std::numeric_limits<float>::infinity(), CollisionEvent, this, this->next);
+	EventStruct ev(std::numeric_limits<float>::infinity(), EdgeEvent, this, this->next);
 	if (param.first >= 0.0f && param.second >= 0.0f)
 	{
 		ev.t = time + param.first;
@@ -374,7 +376,7 @@ MovingParticle::findNextSplitEvent() const
 		const MovingParticle* r = q->next;
 		if (id == 39 && (q->id == 89))
 			intersectSideAndLine(this, q, r);
-		if (this == q || this->prev == q) continue;
+		if (this == q || this->next == q || this==r || this->prev==r) continue;
 		if ((Abs(this->created - q->created) < 1.0e-8 && Distance(this->p, q->p) < 1.0e-3) ||
 			(Abs(this->created - r->created) < 1.0e-8 && Distance(this->p, r->p) < 1.0e-3))
 		{
@@ -398,6 +400,19 @@ MovingParticle::findNextSplitEvent() const
 			}
 		}
 	}
+	//if the event location is close to a vertex of being split, then make it as Collision
+	if(ev.q != NULL)
+	{
+		if (ev.p->id == 246)
+			ev.t += 0;
+		float t0 = ev.t - time;
+		CParticleF p0 = move(t0);
+		if (Distance(p0, ev.q->move(t0)) < MP_EPSILON || Distance(p0, ev.r->move(t0)) < MP_EPSILON)
+		{
+			ev.type = CollisionEvent;
+		}
+	}
+
 	return ev;
 }
 
@@ -442,7 +457,7 @@ MovingParticle::updateEvent()
 			ev1 = findNextEdgeEvent();
 			bChanged = true;
 		}
-		if (event.type == CollisionEvent && (this->next != event.q || event.q->isActive() == false))
+		if (event.type == EdgeEvent && (this->next != event.q || event.q->isActive() == false))
 		{
 			if (id == 292)
 				id += 0;
@@ -481,13 +496,12 @@ MovingParticle::updateEvent()
 
 	if (id == 225)
 	{
-		printf("\t%d:", id);
-		event.print();
+		//printf("\t%d:", id);
+		//event.print();
 	}
 	return true;
 }
 
-#include <ParticleDirection.h>
 
 bool 
 MovingParticle::applyEvent()
@@ -498,7 +512,7 @@ MovingParticle::applyEvent()
 	MovingParticle* r = (MovingParticle*)event.r;
 	ParticleFactory* factory = ParticleFactory::getInstance();
 	MovingParticle* pnew[2] = { NULL, NULL };
-	if (event.type == CollisionEvent)
+	if (event.type == EdgeEvent)
 	{
 		pnew[0] = factory->makeParticle(p->p, Collide, event.t);
 		setNeighbors(pnew[0], p->prev, p->next->next);
@@ -513,6 +527,31 @@ MovingParticle::applyEvent()
 		setNeighbors(pnew[0], event.p->prev, r);
 		setNeighbors(pnew[1], q, event.p->next);
 		factory->inactivate(p);
+	}
+	else if (event.type == CollisionEvent)
+	{
+		pnew[0] = factory->makeParticle(this->p, Split, event.t);
+		pnew[1] = factory->makeParticle(this->p, Split, event.t);
+		MovingParticle* x;
+		if (Distance(p->p, event.q->p) < Distance(p->p, event.r->p))
+		{
+			x = (MovingParticle*) event.q;
+		}
+		else
+		{
+			x = (MovingParticle*) event.r;
+		}
+		MovingParticle* xn = x->next;
+		MovingParticle* xp = x->prev;
+		/*printf("%d, %d, %d\n", p->id, event.q->id, event.r->id);
+		printf("%d, %d, %d\n", p->prev->id, p->id, p->next->id);
+		printf("%d, %d, %d, %d, %d\n", xp->prev->id, xp->id, x->id, xn->id, xn->next->id);*/
+		setNeighbors(pnew[0], event.p->prev, xn);
+		setNeighbors(pnew[1], xp, event.p->next);
+		//vector<MovingParticle*> vp1 = vectorize(pnew[0]);
+		//vector<MovingParticle*> vp2 = vectorize(pnew[1]);
+		factory->inactivate(p);
+		factory->inactivate(x);
 	}
 
 	for (int i = 0; i < 2; ++i)
@@ -535,7 +574,7 @@ MovingParticle::applyEvent()
 			factory->updateQueue.insert(pnew[i]->prev); //possibly a new collision into the new particle.
 		}
 	}
-	if (event.type == CollisionEvent)
+	if (event.type == EdgeEvent)
 	{
 		//if a new side has a wider angle, add other concave vertices to the update queue.
 		if (frontPropAngle(this->prev, this) < frontPropAngle(pnew[0]->prev, pnew[0]) ||
@@ -544,7 +583,7 @@ MovingParticle::applyEvent()
 			for (set<MovingParticle*>::iterator it = factory->activeSet.begin(); it != factory->activeSet.end(); ++it)
 			{
 				/////TK if ((*it)->isConcave())
-				if ((*it)->event.type != CollisionEvent)
+				if ((*it)->event.type != EdgeEvent)
 				{
 					factory->updateQueue.insert(*it);
 				}
@@ -692,47 +731,148 @@ MovingParticle::quickFinish()
 	}
 }
 
+/*
+find a segment in a polygon wich Q where [p, p->next] intersects.
+It returns the segment [q, q->next] and a parameter t, such that the intersection point is
+(1-t)*q + t*q->next.
+*/
+pair<MovingParticle*, float>
+MovingParticle::findIntersection(MovingParticle* p, MovingParticle* q)
+{
+	pair<MovingParticle*, float> info(NULL, 0.0f);
+	vector<MovingParticle*> vp = vectorize(q);
+	for (int i = 0; i<vp.size(); ++i)
+	{
+		MovingParticle* r = vp[i];
+		pair<float, float> param = _IntersectConvexPolygon::intersect(p->p, p->next->p, r->p, r->next->p);
+		if (param.first > 0 && param.first < 1.0f &&param.second >= 0 && param.second <= 1.0f)
+		{
+			info.first = r;
+			info.second = param.second;
+			break;
+		}
+	} 
+	return info;
+}
+
+bool 
+MovingParticle::correctOvershoot(MovingParticle* p, MovingParticle* q, pair<float, float> param)
+{
+	ParticleFactory* factory = ParticleFactory::getInstance();
+	float time = p->time;
+	if (param.first > 0.0f && param.first<1.0f && param.second>0.0f && param.second < 1.0f)
+	{
+		if (p->next->next == q) //collision
+		{
+			MovingParticle* p2 = p->next;
+			float t = param.first;
+			CParticleF p0(p->p.m_X*(1.0 - t) + p2->p.m_X*t, p->p.m_Y*(1.0 - t) + p2->p.m_Y*t);
+			MovingParticle* y = factory->makeParticle(p0, Collide, time);
+			setNeighbors(y, p, q->next);
+			y->calculateVelocity();
+			y->parents[0] = p2;
+			y->parents[1] = q;
+			factory->inactivate(p2);
+			factory->inactivate(q);
+			vector<MovingParticle*> vp1 = vectorize(y);
+		}
+		else //split
+		{
+			MovingParticle* rs[2];
+			if (param.first < 0.5) //intersection closer to p than p->next
+			{
+				rs[0] = p->prev;
+				rs[1] = p;
+			}
+			else
+			{
+				rs[0] = p;
+				rs[1] = p->next;
+			}
+			pair<MovingParticle*, float> isec[2]; //intersection information
+			for (int k = 0; k < 2; ++k)
+			{
+				isec[k] = findIntersection(rs[k], q);
+			}
+			if (isec[0].first == NULL || isec[1].first == NULL)
+			{
+				printf("correctOvershoot: %d <=> %d, %d <=> %d\n",
+					rs[0]->id, (isec[0].first == NULL ? -1 : isec[0].first->id),
+					rs[1]->id, (isec[1].first == NULL ? -1 : isec[1].first->id));
+				return false;
+			}
+			MovingParticle* pnew[2];
+			for (int k = 0; k < 2; ++k)
+			{
+				float t = isec[k].second;
+				MovingParticle* x = isec[k].first;
+				CParticleF p0(x->p.m_X*(1.0 - t) + x->next->p.m_X*t, x->p.m_Y*(1.0 - t) + x->next->p.m_Y*t);
+				pnew[k] = factory->makeParticle(p0, Split, time);
+			}
+
+			//inactivate some before changing the neighborhood configuration
+			factory->inactivate(rs[1]);
+			MovingParticle* tmp = isec[1].first;
+			while (tmp != isec[0].first)
+			{
+				factory->inactivate(tmp->next);
+				tmp = tmp->next;
+			}
+			//set neighborhoods, velocity and parents.
+			setNeighbors(pnew[0], rs[0], isec[0].first->next);
+			setNeighbors(pnew[1], isec[1].first, rs[1]->next);
+			vector<MovingParticle*> vp1 = vectorize(pnew[0]);
+			vector<MovingParticle*> vp2 = vectorize(pnew[1]);
+			pnew[0]->parents[0] = rs[1];
+			pnew[1]->parents[1] = rs[1];
+			for (int k = 0; k < 2; ++k)
+			{
+				pnew[k]->calculateVelocity();
+			}
+		}
+	}
+	return true;
+}
 
 bool
 MovingParticle::sanityCheck()
 {
 	ParticleFactory* factory = ParticleFactory::getInstance();
-	bool bdone = true;
-	for (set<MovingParticle*>::iterator it = factory->activeSet.begin(); it != factory->activeSet.end(); ++it)
+	while (true)
 	{
-		if ((*it)->next == NULL)
-			bdone = true;
-		CParticleF p = (*it)->p;
-		CParticleF p2 = (*it)->next->p;
-
-		//NOTE: j starts j+2 to skip the adjacent side
-		set<MovingParticle*>::iterator it2 = it;
-		it2++;
-		for (; it2 != factory->activeSet.end(); ++it2)
+		bool bdone = true;
+		for (int i = 0; i < factory->particles.size() && bdone; ++i)
 		{
-			if ((*it2)->next == NULL)
-				bdone = true;
-			CParticleF q = (*it2)->p;
-			CParticleF q2 = (*it2)->next->p;
-			pair<float, float> param = _IntersectConvexPolygon::intersect(p, p2, q, q2);
-			if (param.first>0.01 && param.first<0.99 && param.second>0.01 && param.second < 0.99)
+			MovingParticle* p = factory->particles[i];
+			if (p->isActive() == false) continue;
+			MovingParticle* p2 = p->next;
+
+			for (int j = 0; j < factory->particles.size(); ++j)
 			{
-				//check if they are not coincidentally parallel to each other
-				float dval = Distance2Line(q, q2, p);
-				if(dval > 0.01)
+				MovingParticle* q = factory->particles[j];
+				if (q->isActive() == false) continue;
+				MovingParticle* q2 = q->next;
+				if (p2 == q || q2 == p) continue;
+				pair<float, float> param = _IntersectConvexPolygon::intersect(p->p, p2->p, q->p, q2->p);
+				if (param.first > 0.0f && param.first<1.0f && param.second>0.0f && param.second < 1.0f)
 				{
-					printf("sanityCheck(): crossing at %d(%3.3f,%3.3f)-%d(%3.3f,%3.3f) and %d(%3.3f,%3.3f)-%d(%3.3f,%3.3f) with degree of [%3.3f,%3.3f] and %3.3f.\n",
-						(*it)->id, p.m_X, p.m_Y, (*it)->next->id, p2.m_X, p2.m_Y,
-						(*it2)->id, q.m_X, q.m_Y, (*it2)->next->id, q2.m_X, q2.m_Y,
-						param.first, param.second, dval);
-					(*it)->event.print();
-					//(*it)->next->event.print();
-					//(*it2)->event.print();
-					//(*it2)->next->event.print();
-					return false;
+					printf("Correction: %d-%d vs %d-%d (%f, %f)\n", p->id, p2->id, q->id, q2->id, param.first, param.second);
+					bool b = correctOvershoot(p, q, param);
+					if (b == false)
+					{
+						printf("Correction failed.\n");
+						//return false;
+					}
+					else
+					{
+						bdone = false;
+						break;
+					}
 				}
 			}
 		}
+
+		if (bdone) break;
 	}
 	return true;
 }
