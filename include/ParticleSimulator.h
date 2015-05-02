@@ -10,13 +10,13 @@ public:
 	{
 		time = 0.0f;
 	}
-	bool Prepare(vector<CParticleF>& points, vector<pair<int, int>>& edges, float delta0 = 0.01);
+	virtual bool Prepare(vector<CParticleF>& points, vector<pair<int, int>>& edges, float delta0 = 0.01);
 	bool LoadParticles(vector<float>& state, const int* dims);
-	bool Restore(vector<Snapshot>& snapshots);
+	virtual bool Restore(vector<Snapshot>& snapshots);
 	mxArray* SaveParticles();
 	mxArray* SaveDoneEvents();
 	mxArray* SaveConvexity();
-	bool Simulate(float endtime = 10.0f, float delta = 0.1f, bool bdebug = false);
+	virtual bool Simulate(float endtime = 10.0f, float delta = 0.1f, bool bdebug = false);
 	float getTime() const { return time; }
 
 	static vector<MovingParticle*>	initializePolygon(vector<Edge<CParticleF>*>& edges); //temporary
@@ -24,7 +24,7 @@ public:
 	vector<Snapshot> snapshots; //id-time pair.
 	vector<EventStruct> doneEvents;
 	vector<Snapshot> closedRegions;
-private:
+protected:
 	bool initializePolygon(vector<MovingParticle*>& particles);
 	bool _Restore(Snapshot& snapshot);
 	float time;

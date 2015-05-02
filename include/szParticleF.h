@@ -75,6 +75,16 @@ public:
 	float m_Life;
 };
 
+namespace std
+{
+	template <>
+	struct hash<CParticleF> {
+		size_t operator()(const CParticleF&pt) const {
+			return std::hash<float>()(pt.m_X) ^ std::hash<float>()(pt.m_Y) ^ std::hash<float>()(pt.m_Z);
+		}
+	};
+}
+
 inline CParticleF 
 Difference(const CParticleF& p, const CParticleF& q)
 {

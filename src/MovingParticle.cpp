@@ -360,10 +360,8 @@ MovingParticle::findNextSplitEvent() const
 	{
 		const MovingParticle* q = *j; 
 		const MovingParticle* r = q->next;
-		if (id == 39 && (q->id == 89))
-			intersectSideAndLine(this, q, r);
 		if (this == q || this->next == q || this==r || this->prev==r) continue;
-		if ((Abs(this->created - q->created) < 1.0e-8 && Distance(this->p, q->p) < 1.0e-3) ||
+		/*if ((Abs(this->created - q->created) < 1.0e-8 && Distance(this->p, q->p) < 1.0e-3) ||
 			(Abs(this->created - r->created) < 1.0e-8 && Distance(this->p, r->p) < 1.0e-3))
 		{
 			//Nov. 15th, 2014
@@ -371,7 +369,7 @@ MovingParticle::findNextSplitEvent() const
 			//they cannot be splitting each other. However, because of numerical precision, we may get a very small positive 
 			//collision time.
 			continue;
-		}
+		}*/
 
 		//if (eta <= 0) continue;
 		float t0 = intersectSideAndLine(this, q, r); // period - p->time);
@@ -450,8 +448,6 @@ MovingParticle::updateEvent()
 		}
 		if (event.type == EdgeEvent && (this->next != event.q || event.q->isActive() == false))
 		{
-			if (id == 292)
-				id += 0;
 			ev1 = findNextEdgeEvent();
 			bChanged = true;
 		}

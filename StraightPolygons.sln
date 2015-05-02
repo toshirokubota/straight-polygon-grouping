@@ -31,6 +31,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RelativeNeighborhood", "Rel
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "UniformConnectedness", "UniformConnectedness\UniformConnectedness.vcxproj", "{982C38FE-8CB1-4920-96B2-D27A6805909C}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "StraightOffsetPolygonIncremental", "StraightOffsetPolygonsIncremental\StraightOffsetPolygonIncremental.vcxproj", "{8DD089AF-4210-49BB-B2D2-5041F71D11CC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Mixed Platforms = Debug|Mixed Platforms
@@ -185,6 +187,18 @@ Global
 		{982C38FE-8CB1-4920-96B2-D27A6805909C}.Release|Win32.Build.0 = Release|Win32
 		{982C38FE-8CB1-4920-96B2-D27A6805909C}.Release|x64.ActiveCfg = Release|x64
 		{982C38FE-8CB1-4920-96B2-D27A6805909C}.Release|x64.Build.0 = Release|x64
+		{8DD089AF-4210-49BB-B2D2-5041F71D11CC}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
+		{8DD089AF-4210-49BB-B2D2-5041F71D11CC}.Debug|Mixed Platforms.Build.0 = Debug|Win32
+		{8DD089AF-4210-49BB-B2D2-5041F71D11CC}.Debug|Win32.ActiveCfg = Debug|Win32
+		{8DD089AF-4210-49BB-B2D2-5041F71D11CC}.Debug|Win32.Build.0 = Debug|Win32
+		{8DD089AF-4210-49BB-B2D2-5041F71D11CC}.Debug|x64.ActiveCfg = Debug|x64
+		{8DD089AF-4210-49BB-B2D2-5041F71D11CC}.Debug|x64.Build.0 = Debug|x64
+		{8DD089AF-4210-49BB-B2D2-5041F71D11CC}.Release|Mixed Platforms.ActiveCfg = Release|Win32
+		{8DD089AF-4210-49BB-B2D2-5041F71D11CC}.Release|Mixed Platforms.Build.0 = Release|Win32
+		{8DD089AF-4210-49BB-B2D2-5041F71D11CC}.Release|Win32.ActiveCfg = Release|Win32
+		{8DD089AF-4210-49BB-B2D2-5041F71D11CC}.Release|Win32.Build.0 = Release|Win32
+		{8DD089AF-4210-49BB-B2D2-5041F71D11CC}.Release|x64.ActiveCfg = Release|x64
+		{8DD089AF-4210-49BB-B2D2-5041F71D11CC}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
