@@ -16,6 +16,10 @@ ParticleSimulator::Simulate(float endtime, float delta, bool bdebug)
 	{
 		(*it)->updateEvent();
 	}
+	{
+		vector<Snapshot> shots = Snapshot::TakeSnapshot(time);
+		snapshots.insert(snapshots.end(), shots.begin(), shots.end());
+	}
 	int iter = 0;
 	while (time < endtime)
 	{
@@ -66,6 +70,15 @@ ParticleSimulator::Simulate(float endtime, float delta, bool bdebug)
 					if (find(closedRegions.begin(), closedRegions.end(), shot) == closedRegions.end())
 					{
 						closedRegions.push_back(shot);
+					}
+				}
+				//if (tr.size() > 10) //forget small ones
+				{
+					Snapshot shot(0.0f, tr);
+					if (find(traces.begin(), traces.end(), shot) == traces.end())
+					{
+						traces.push_back(Snapshot(0, tr));
+						polygons.push_back(Snapshot(time, regions[i]));
 					}
 				}
 			}

@@ -142,7 +142,8 @@ private:
 	float MovingParticle::_splitTime(const MovingParticle* q, const MovingParticle* r, float eps = 1.0e-3) const;
 	bool _onSideAt(const MovingParticle* q, float t, float eps = 1.0e-3) const;
 	void _setParents(EventStruct cause);
-	bool calculateVelocity();
+	//bool calculateVelocity(bool leaf = false);
+	bool calculateVelocityR(float vp=1.0f, float vn=1.0f);
 	bool initializeVelocity();
 
 	static float intersectSideAndLine(const MovingParticle* p, const MovingParticle* q, const MovingParticle* r);

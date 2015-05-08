@@ -116,7 +116,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 				LoadData(T0, prhs[1], classIdT, ndimT, &dimsT);
 				E = indices2pairs(T0, dimsT);
 			}
-			simulator.Prepare(points, E, 0.01f); 
+			simulator.Prepare(points, E, 3.f); 
 		}
 	}
 	float endtime = 2.0f;
@@ -154,7 +154,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 	}
 	if (nlhs >= 4)
 	{
-		plhs[3] = simulator.SaveDoneEvents();
+		plhs[3] = Snapshot::StoreSnapshots(simulator.polygons);
+		//plhs[3] = simulator.SaveDoneEvents();
+	}
+	if (nlhs >= 4)
+	{
+		plhs[4] = Snapshot::StoreSnapshots(simulator.traces);
+		//plhs[3] = simulator.SaveDoneEvents();
 	}
 
 	ParticleFactory::getInstance()->clean();

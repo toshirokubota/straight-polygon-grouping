@@ -159,13 +159,14 @@ MovingParticle::getNextEvent()
 }
 
 /*
-Takes are of end-points (leaf nodes) and set rear and front directions.
+Takes care of end-points (leaf nodes) and set rear and front directions.
 This should be called at the very beginning of the simulation after forrests are traced.
 */
 bool
 MovingParticle::initializeVelocity()
 {
 	float eps = 1.0e-6;
+	int mode = 0; //0: normal, 1: prev-leaf, 2: next-leaf
 	if (Distance(p, prev->p) < eps && Distance(p, next->p) < eps) //a single point. Cann't continue
 	{
 		v[0] = v[1] = 0;
@@ -182,6 +183,7 @@ MovingParticle::initializeVelocity()
 		else //p==next
 		{
 			//leaf
+			mode = 2;
 			float ang = GetVisualDirection(p.m_X, p.m_Y, prev->p.m_X, prev->p.m_Y) - PI / 2.0;
 			CParticleF d = perpDirection(prev->p, p);
 			front.x = cos(ang);
@@ -196,26 +198,78 @@ MovingParticle::initializeVelocity()
 		else//p==prev
 		{
 			//leaf
+			mode = 1;
 			float ang = GetVisualDirection(p.m_X, p.m_Y, next->p.m_X, next->p.m_Y) + PI / 2.0;
 			CParticleF d = perpDirection(p, next->p);
 			rear.x = -cos(ang);
 			rear.y = -sin(ang);
 		}
-		bool b = calculateVelocity();
-		/*printf("%d:(%2.2f,%2.2f)<=(%2.2f,%2.2f)=>(%2.2f,%2.2f), L=(%2.2f,%2.2f), R=(%2.2f,%2.2f), v=(%2.2f,%2.2f)\n",
-			id, prev->p.m_X, prev->p.m_Y, p.m_X, p.m_Y, next->p.m_X, next->p.m_Y,
-			rear.x, rear.y, front.x, front.y, v[0], v[1]);*/
-			
-		return b;
+		if (mode == 0)
+		{
+			return calculateVelocityR(1.0f, 1.0f);
+		}
+		else if (mode == 1)
+		{
+			return calculateVelocityR(1.0f, 1.0f);
+		}
+		else if (mode == 2)
+		{
+			return calculateVelocityR(1.0f, 1.0f);
+		}
+		else
+		{
+			return false;
+		}
 	}
 }
 
 bool
-MovingParticle::calculateVelocity()
+MovingParticle::calculateVelocityR(float vp, float vn)
+{
+	CParticleF a1(p.m_X - vp*rear.y, p.m_Y + vp*rear.x);
+	CParticleF a2(a1.m_X + rear.x, a1.m_Y + rear.y);
+	CParticleF b1(p.m_X - vn*front.y, p.m_Y + vn*front.x);
+	CParticleF b2(b1.m_X + front.x, b1.m_Y + front.y);
+	pair<float, float> pr = _IntersectConvexPolygon::intersect(a1, a2, b1, b2);
+	if (pr.first != pr.first)
+	{
+		//on top of a straight line segment
+		v[0] = -(vp + vn) / 2 * rear.y;
+		v[1] = (vp + vn) / 2 * rear.x;
+		return true;
+	}
+	else if (Abs(pr.first) > 1000.0)
+	{
+		return false;
+	}
+	else
+	{
+		CParticleF c((1.0 - pr.first) * a1.m_X + pr.first * a2.m_X, (1.0 - pr.first) * a1.m_Y + pr.first * a2.m_Y);
+		v[0] = c.m_X - p.m_X;
+		v[1] = c.m_Y - p.m_Y;
+		return true;
+	}
+}
+
+/*bool
+MovingParticle::calculateVelocity(bool bleaf)
 {
 	CParticleF b(p.m_X + front.x, p.m_Y + front.y);
-	CParticleF a(p.m_X-rear.x, p.m_Y - rear.y);
+	CParticleF a(p.m_X - rear.x, p.m_Y - rear.y);
 	CParticleF bs = bisector(p, a, b);
+	if (bleaf)
+	{
+		if (Distance(p0, next->p0) <= 1.0e-3)
+		{
+			b = CParticleF(p.m_X - bs.m_X, p.m_Y - bs.m_Y);
+			bs = bisector(p, a, b);
+		}
+		else if (Distance(p0, prev->p0) <= 1.0e-3)
+		{
+			a = CParticleF(p.m_X - bs.m_X, p.m_Y - bs.m_Y);
+			bs = bisector(p, a, b);
+		}
+	}
 	double ang = GetVisualAngle2(a.m_X, a.m_Y, b.m_X, b.m_Y, p.m_X, p.m_Y);
 	double cs = cos((PI - Abs(ang)) / 2.0);
 	bool bret = true;
@@ -231,7 +285,7 @@ MovingParticle::calculateVelocity()
 	v[0] = (float)bs.m_X; 
 	v[1] = (float)bs.m_Y;
 	return bret;
-}
+}*/
 
 int clockWise(vector<MovingParticle*>& particles)
 {
@@ -268,7 +322,7 @@ MovingParticle::_splitTime(const MovingParticle* q, const MovingParticle* r, flo
 	if (deriv >= 0) return std::numeric_limits<float>::infinity(); //moving away
 
 	float dval = Distance(p, y);
-	return dval / (1 - dp);
+	return dval / (dq - dp);
 }
 
 /*
@@ -538,7 +592,7 @@ MovingParticle::applyEvent()
 		if (pnew[i] == NULL) continue;
 
 		pnew[i]->_setParents(event); //set parents of the new particle
-		if (pnew[i]->calculateVelocity() == false)
+		if (pnew[i]->calculateVelocityR(1.0f, 1.0f) == false)
 		{
 			pnew[i]->bUnstable = true;
 		}
@@ -748,7 +802,7 @@ MovingParticle::correctOvershoot(MovingParticle* p, MovingParticle* q, pair<floa
 			CParticleF p0(p->p.m_X*(1.0 - t) + p2->p.m_X*t, p->p.m_Y*(1.0 - t) + p2->p.m_Y*t);
 			MovingParticle* y = factory->makeParticle(p0, Collide, time);
 			setNeighbors(y, p, q->next);
-			y->calculateVelocity();
+			y->calculateVelocityR(1.0f, 1.0f);
 			y->parents[0] = p2;
 			y->parents[1] = q;
 			factory->inactivate(p2);
@@ -806,7 +860,7 @@ MovingParticle::correctOvershoot(MovingParticle* p, MovingParticle* q, pair<floa
 			pnew[1]->parents[1] = rs[1];
 			for (int k = 0; k < 2; ++k)
 			{
-				pnew[k]->calculateVelocity();
+				pnew[k]->calculateVelocityR(1.0f, 1.0f);
 			}
 		}
 	}

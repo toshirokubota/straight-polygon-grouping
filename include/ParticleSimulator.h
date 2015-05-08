@@ -24,6 +24,8 @@ public:
 	vector<Snapshot> snapshots; //id-time pair.
 	vector<EventStruct> doneEvents;
 	vector<Snapshot> closedRegions;
+	vector<Snapshot> polygons; //offset polygon
+	vector<Snapshot> traces; //the trace of each offset polygon in polygons
 protected:
 	bool initializePolygon(vector<MovingParticle*>& particles);
 	bool _Restore(Snapshot& snapshot);
