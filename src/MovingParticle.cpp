@@ -177,8 +177,9 @@ MovingParticle::initializeVelocity()
 		if (Distance(p, next->p) > eps)
 		{
 			CParticleF d = NormalizedDirection(next->p, p);
-			front.x = d.m_X;
-			front.y = d.m_Y;
+			front.dir.x = d.m_X;
+			front.dir.y = d.m_Y;
+			front.speed = 1.0f;
 		}
 		else //p==next
 		{
@@ -186,14 +187,16 @@ MovingParticle::initializeVelocity()
 			mode = 2;
 			float ang = GetVisualDirection(p.m_X, p.m_Y, prev->p.m_X, prev->p.m_Y) - PI / 2.0;
 			CParticleF d = perpDirection(prev->p, p);
-			front.x = cos(ang);
-			front.y = sin(ang);
+			front.dir.x = cos(ang);
+			front.dir.y = sin(ang);
+			front.speed = 2.0f;
 		}
 		if (Distance(p, prev->p) > eps)
 		{
 			CParticleF d = NormalizedDirection(p, prev->p);
-			rear.x = d.m_X;
-			rear.y = d.m_Y;
+			rear.dir.x = d.m_X;
+			rear.dir.y = d.m_Y;
+			rear.speed = 1.0f;
 		}
 		else//p==prev
 		{
@@ -201,41 +204,29 @@ MovingParticle::initializeVelocity()
 			mode = 1;
 			float ang = GetVisualDirection(p.m_X, p.m_Y, next->p.m_X, next->p.m_Y) + PI / 2.0;
 			CParticleF d = perpDirection(p, next->p);
-			rear.x = -cos(ang);
-			rear.y = -sin(ang);
+			rear.dir.x = -cos(ang);
+			rear.dir.y = -sin(ang);
+			rear.speed = 2.0f;
 		}
-		if (mode == 0)
-		{
-			return calculateVelocityR(1.0f, 1.0f);
-		}
-		else if (mode == 1)
-		{
-			return calculateVelocityR(1.0f, 1.0f);
-		}
-		else if (mode == 2)
-		{
-			return calculateVelocityR(1.0f, 1.0f);
-		}
-		else
-		{
-			return false;
-		}
+		return calculateVelocityR();
 	}
 }
 
 bool
-MovingParticle::calculateVelocityR(float vp, float vn)
+MovingParticle::calculateVelocityR()
 {
-	CParticleF a1(p.m_X - vp*rear.y, p.m_Y + vp*rear.x);
-	CParticleF a2(a1.m_X + rear.x, a1.m_Y + rear.y);
-	CParticleF b1(p.m_X - vn*front.y, p.m_Y + vn*front.x);
-	CParticleF b2(b1.m_X + front.x, b1.m_Y + front.y);
+	CParticleF a1(p.m_X - rear.speed*rear.dir.y, p.m_Y + rear.speed*rear.dir.x);
+	CParticleF a2(a1.m_X + rear.dir.x, a1.m_Y + rear.dir.y);
+	CParticleF b1(p.m_X - front.speed*front.dir.y, p.m_Y + front.speed*front.dir.x);
+	CParticleF b2(b1.m_X + front.dir.x, b1.m_Y + front.dir.y);
 	pair<float, float> pr = _IntersectConvexPolygon::intersect(a1, a2, b1, b2);
 	if (pr.first != pr.first)
 	{
 		//on top of a straight line segment
-		v[0] = -(vp + vn) / 2 * rear.y;
-		v[1] = (vp + vn) / 2 * rear.x;
+		ParticleDirection pd = rear.normal();
+		float speed = (rear.speed + front.speed) / 2.0;
+		v[0] = speed * pd.x;
+		v[1] = speed * pd.y;
 		return true;
 	}
 	else if (Abs(pr.first) > 1000.0)
@@ -304,7 +295,7 @@ It returns the time of the split/collision.
 float 
 MovingParticle::_splitTime(const MovingParticle* q, const MovingParticle* r, float eps) const
 {
-	ParticleDirection u(-q->front.y, q->front.x);
+	ParticleDirection u = q->front.normal();
 	float dq = q->v[0] * u.x + q->v[1] * u.y;
 	if (dq < 0)
 	{
@@ -592,7 +583,7 @@ MovingParticle::applyEvent()
 		if (pnew[i] == NULL) continue;
 
 		pnew[i]->_setParents(event); //set parents of the new particle
-		if (pnew[i]->calculateVelocityR(1.0f, 1.0f) == false)
+		if (pnew[i]->calculateVelocityR() == false)
 		{
 			pnew[i]->bUnstable = true;
 		}
@@ -802,7 +793,7 @@ MovingParticle::correctOvershoot(MovingParticle* p, MovingParticle* q, pair<floa
 			CParticleF p0(p->p.m_X*(1.0 - t) + p2->p.m_X*t, p->p.m_Y*(1.0 - t) + p2->p.m_Y*t);
 			MovingParticle* y = factory->makeParticle(p0, Collide, time);
 			setNeighbors(y, p, q->next);
-			y->calculateVelocityR(1.0f, 1.0f);
+			y->calculateVelocityR();
 			y->parents[0] = p2;
 			y->parents[1] = q;
 			factory->inactivate(p2);
@@ -860,7 +851,7 @@ MovingParticle::correctOvershoot(MovingParticle* p, MovingParticle* q, pair<floa
 			pnew[1]->parents[1] = rs[1];
 			for (int k = 0; k < 2; ++k)
 			{
-				pnew[k]->calculateVelocityR(1.0f, 1.0f);
+				pnew[k]->calculateVelocityR();
 			}
 		}
 	}

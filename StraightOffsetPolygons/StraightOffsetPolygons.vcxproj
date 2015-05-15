@@ -194,6 +194,7 @@
   <ItemGroup>
     <ClInclude Include="..\include\mexFileIO.h" />
     <ClInclude Include="..\include\MiscGeometry.h" />
+    <ClInclude Include="..\include\MovingFront.h" />
     <ClInclude Include="..\include\MovingParticle.h" />
     <ClInclude Include="..\include\ParticleDirection.h" />
     <ClInclude Include="..\include\ParticleSimulator.h" />

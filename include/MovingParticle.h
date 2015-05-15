@@ -9,7 +9,7 @@ using namespace std;
 #include <MiscGeometry.h>
 #include <szMiscOperations.h>
 #include <Graph.h>
-#include <ParticleDirection.h>
+#include <MovingFront.h>
 
 enum MovingParticleType { Unknown, Initial, Regular, Merge, Collide, Split, Axis, Dummy };
 struct ParticleFactory;
@@ -24,21 +24,6 @@ public:
 	friend ParticleFactory; //so that the factory can access _id.
 	friend ParticleSimulator;
 
-	/*bool setVelocity(float vx, float vy)
-	{
-		if (bInitialized == false)
-		{
-			//velocity can be set only once.
-			v[0] = vx;
-			v[1] = vy;
-			bInitialized = true;
-			return true;
-		}
-		else
-		{
-			return false;
-		}
-	}*/
 	void update(float delta)
 	{
 		if (bActive && !bUnstable)
@@ -143,7 +128,7 @@ private:
 	bool _onSideAt(const MovingParticle* q, float t, float eps = 1.0e-3) const;
 	void _setParents(EventStruct cause);
 	//bool calculateVelocity(bool leaf = false);
-	bool calculateVelocityR(float vp=1.0f, float vn=1.0f);
+	bool calculateVelocityR();
 	bool initializeVelocity();
 
 	static float intersectSideAndLine(const MovingParticle* p, const MovingParticle* q, const MovingParticle* r);
@@ -172,8 +157,8 @@ private:
 	MovingParticle* prev;
 	MovingParticle* parents[2];
 	MovingParticle* children[2];
-	ParticleDirection rear;
-	ParticleDirection front;
+	MovingFront rear;
+	MovingFront front;
 
 	int id;
 	MovingParticleType type;
